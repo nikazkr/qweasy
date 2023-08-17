@@ -1,16 +1,31 @@
-# from django.db import models
-# from django.contrib.auth.models import User, AbstractUser
-#
-# GENDER_CHOICES = [
-#     ('M', 'Male'),
-#     ('F', 'Female'),
-#     ('O', 'Other'),
-# ]
-#
-#
-# class CustomUser(AbstractUser):
-#     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-#     age = models.PositiveIntegerField()
-#
-#     def __str__(self):
-#         return self.user.email  # Display user's email in admin panel
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+
+
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = (
+        ('master', 'Master'),
+        ('noob', 'Noob'),
+    )
+
+    LEVEL_CHOICES = (
+        ('junior', 'Junior'),
+        ('middle', 'Middle'),
+        ('senior', 'Senior'),
+    )
+
+    GENDER_CHOICES = (
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    )
+
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, null=True, blank=True)
+    total_score = models.IntegerField(null=True, blank=True)
+    total_time_spent = models.DurationField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.role} - ( {self.email} ) {self.first_name} {self.last_name} "
