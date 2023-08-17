@@ -1,12 +1,13 @@
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from rest_framework import status, generics
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from utils.permissions import IsMasterOrReadOnly
-from .models import Question, Favorite, Score, Quiz
-# from .models import Quiz
-from .serializers import QuestionSelectSerializer, QuestionSerializer, QuizSerializer
+from .models import Question, Favorite, Quiz
+from .serializers import QuestionSelectSerializer, QuestionSerializer, QuizCreateSerializer, QuizDetailSerializer
 
 
 # from .serializers import QuizCreationSerializer
@@ -24,7 +25,7 @@ class QuestionCreateView(APIView):
                 value={
                     'category': 1,
                     'text': 'What is your favorite color?',
-                    'type': 2,
+                    'answer_type': 2,
                     'difficulty': 1,
                     'answers': [
                         {'text': 'Blue', 'is_correct': True},
@@ -49,23 +50,31 @@ class QuestionSelectView(APIView):
     permission_classes = [IsAuthenticated, IsMasterOrReadOnly]
 
     @extend_schema(
-        request=QuestionSelectSerializer,  # Define your request serializer here
-        # responses={status.HTTP_200_OK: None}  # Define your response serializers here
+        request=QuestionSelectSerializer,
+        responses={status.HTTP_200_OK: None}
     )
     def post(self, request, *args, **kwargs):
         serializer = QuestionSelectSerializer(data=request.data)
         if serializer.is_valid():
             category = serializer.validated_data.get('category')
             difficulty = serializer.validated_data.get('difficulty')
-            type = serializer.validated_data.get('type')
+            answer_type = serializer.validated_data.get('answer_type')
             quantity = serializer.validated_data.get('quantity')
+            favorites = serializer.validated_data.get('favorited_only')
 
-            # Apply filters based on the inputs
+            user = request.user
+
             questions = Question.objects.all()
+
+            if favorites:
+                # Filter for favorite questions for specific user
+                favorite_question_ids = Favorite.objects.filter(user=user).values_list('question_id', flat=True)
+                questions = questions.filter(id__in=favorite_question_ids)
+
             if category:
                 questions = questions.filter(category=category)
-            if type:
-                questions = questions.filter(type=type)
+            if answer_type:
+                questions = questions.filter(answer_type=answer_type)
             if difficulty:
                 questions = questions.filter(difficulty=difficulty)
 
@@ -131,23 +140,26 @@ class QuestionFavoriteView(APIView):
 
 class QuizCreateView(generics.CreateAPIView):
     queryset = Quiz.objects.all()
-    serializer_class = QuizSerializer
+    serializer_class = QuizCreateSerializer
 
-# class QuizCreationView(APIView):
-#     def post(self, request, *args, **kwargs):
-#         serializer = QuizCreationSerializer(data=request.data)
-#         if serializer.is_valid():
-#             quiz_name = serializer.validated_data.get('quiz_name')
-#             quiz_time = serializer.validated_data.get('quiz_time')
-#             favorited_questions = serializer.validated_data.get('favorited_questions', [])
-#
-#             # Create a new quiz instance
-#             quiz = Quiz.objects.create(name=quiz_name, time=quiz_time)
-#             quiz.questions.set(favorited_questions)
-#
-#             # Serialize the created quiz
-#             quiz_serializer = QuizCreationSerializer(quiz)
-#
-#             return Response({'quiz': quiz_serializer.data})
-#         else:
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class QuizDetailView(generics.RetrieveAPIView):
+    serializer_class = QuizDetailSerializer
+
+    def get_object(self):
+        quiz_unique_link = self.kwargs['quiz_unique_link']
+        try:
+            quiz = Quiz.objects.get(unique_link=quiz_unique_link)
+            return quiz
+        except Quiz.DoesNotExist:
+            raise NotFound(detail="Quiz not found")
+
+
+class QuizUpdateView(generics.UpdateAPIView):
+    queryset = Quiz.objects.all()
+    serializer_class = QuizDetailSerializer
+
+
+class QuizDeleteView(generics.DestroyAPIView):
+    queryset = Quiz.objects.all()
+    serializer_class = QuizDetailSerializer

@@ -1,7 +1,7 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from users.models import CustomUser
-from django.utils.translation import gettext_lazy as _
 
 
 class Category(models.Model):
@@ -31,7 +31,7 @@ class Question(models.Model):
     category = models.ForeignKey(Category, default=1, on_delete=models.DO_NOTHING)
     text = models.TextField(max_length=200)
     image = models.ImageField(upload_to='question_images/', blank=True, null=True)
-    type = models.IntegerField(choices=TYPE, default=0)
+    answer_type = models.IntegerField(choices=TYPE, default=0)
     difficulty = models.IntegerField(choices=LEVEL, default=0)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
@@ -61,9 +61,10 @@ class Favorite(models.Model):
 
 class Quiz(models.Model):
     title = models.CharField(max_length=100)
-    questions = models.ManyToManyField(Question,related_name='quiz')
+    questions = models.ManyToManyField(Question, related_name='quiz')
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    time_limit = models.DurationField()  # Time limit for completing the quiz
+    time_limit = models.DurationField()
+    unique_link = models.CharField(max_length=50)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
 
@@ -79,7 +80,7 @@ class Quiz(models.Model):
 class Score(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    score = models.PositiveIntegerField(default=0)  # Add appropriate validation if needed
+    score = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"Quiz: {self.quiz.title} - Question: {self.question.id} - Score: {self.score}"
