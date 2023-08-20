@@ -9,8 +9,18 @@ services:
       - .env
     ports:
       - "5432:5432"
+  redis:
+    image: redis:latest
+    restart: always
+    volumes:
+      - redis_data:/data
+    env_file:
+      - .env
+    ports:
+      - "6379:6379"
   web_api:
     build: .
+    restart: always
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
