@@ -1,7 +1,7 @@
 from django.urls import path
 
-from .views import QuestionSelectView, QuestionCreateView, QuestionFavoriteView, QuizCreateView, QuizDetailView, \
-    ResultSubmitView, UserResultsWithAnswersView, QuestionDetailView, QuizUpdateDeleteView, QuizListView
+from .views import QuestionSelectView, QuestionCreateView, QuestionFavoriteView, ResultSubmitView, QuestionDetailView, \
+    QuizCreateView, UserResultsWithAnswersView, QuizDetailView, QuizUpdateDeleteView, QuizListView, SendQuizEmailView
 
 urlpatterns = [
     path('question/create/', QuestionCreateView.as_view(), name='question-create'),
@@ -12,6 +12,7 @@ urlpatterns = [
     path('quiz/<str:quiz_unique_link>/', QuizDetailView.as_view(), name='quiz-detail'),
     path('quiz/<int:pk>', QuizUpdateDeleteView.as_view(), name='quiz-update-delete'),
     path('quiz/', QuizListView.as_view(), name='quiz-list'),
+    path('quiz/send-email', SendQuizEmailView.as_view(), name='send-quiz-email'),
     path('quiz/submit', ResultSubmitView.as_view(), name='quiz-submit'),
     path('user-results/<int:user_id>/', UserResultsWithAnswersView.as_view(), name='user-results'),
 ]

@@ -137,3 +137,8 @@ class ResultWithAnswersSerializer(serializers.ModelSerializer):
         model = Result
         fields = '__all__'
         depth = 1
+
+
+class QuizEmailSendSerializer(serializers.Serializer):
+    quiz_id = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
+    recipient_emails = serializers.ListField(child=serializers.EmailField())

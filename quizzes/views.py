@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
@@ -10,10 +11,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.models import CustomUser
+from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsMaster
 from .models import Question, Favorite, Quiz, Result, UserAnswer
 from .serializers import QuestionSerializer, QuizCreateSerializer, QuizDetailSerializer, \
-    ResultSubmitSerializer, ResultWithAnswersSerializer
+    ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer
 
 
 class QuestionCreateView(APIView):
@@ -232,3 +234,17 @@ class UserResultsWithAnswersView(APIView):
         results = Result.objects.filter(user=user)
         serializer = ResultWithAnswersSerializer(results, many=True)
         return Response(serializer.data)
+
+
+class SendQuizEmailView(APIView):
+    @extend_schema(request=QuizEmailSendSerializer)
+    def post(self, request):
+        serializer = QuizEmailSendSerializer(data=request.data)
+        if serializer.is_valid():
+            quiz = serializer.validated_data['quiz_id']
+            recipient_emails = serializer.validated_data['recipient_emails']
+
+            send_quiz_link_to_students(recipient_emails, quiz.unique_link)
+
+            return Response({'message': 'Emails sent successfully.'})
+        return Response(serializer.errors, status=400)
