@@ -65,9 +65,27 @@ To run Qweasy on your local environment using Docker, follow these steps:
 
   Create a .env file in the project root directory and define the following variables:
 
-   ```bash
-   SECRET_KEY=your-secret-key
-   DEBUG=True
+  ```bash
+  SECRET_KEY=
+  
+  DEBUG=True
+  
+  POSTGRES_USER=
+  POSTGRES_DB=
+  POSTGRES_PASSWORD=
+  POSTGRES_HOST=
+  POSTGRES_PORT=
+  
+  CALLBACK_URL=
+  CLIENT_ID=
+  CLIENT_SECRET=
+  
+  EMAIL_USE_TLS=
+  EMAIL_PORT=
+  EMAIL_HOST_USER=
+  EMAIL_HOST_PASSWORD=
+  ```
+  These variables are also available in *.env.sample* file, located in projects main folder
 
 ### Running the App:
 

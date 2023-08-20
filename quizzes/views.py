@@ -1,25 +1,25 @@
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.urls import reverse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
-from utils.permissions import IsMaster
+from utils.permissions import IsExaminer
 from .models import Question, Favorite, Quiz, Result, UserAnswer
 from .serializers import QuestionSerializer, QuizCreateSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer
 
 
 class QuestionCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         request=QuestionSerializer,
@@ -54,11 +54,11 @@ class QuestionCreateView(APIView):
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuestionSelectView(APIView):
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         parameters=[
@@ -109,7 +109,7 @@ class QuestionSelectView(APIView):
 
 
 class QuestionFavoriteView(APIView):
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def post(self, request, pk):
         try:
@@ -130,33 +130,33 @@ class QuestionFavoriteView(APIView):
 class QuizCreateView(generics.CreateAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizCreateSerializer
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuizListView(generics.ListAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
-class QuizDetailView(generics.RetrieveAPIView):
+class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
-    def get_object(self):
-        quiz_unique_link = self.kwargs['quiz_unique_link']
+    def get(self, request, quiz_unique_link):
         try:
             quiz = Quiz.objects.get(unique_link=quiz_unique_link)
-            return quiz
+            serializer = self.serializer_class(quiz)
+            return Response(serializer.data)
         except Quiz.DoesNotExist:
-            raise NotFound(detail="Quiz not found")
+            return Response({"error": "Quiz not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class QuizUpdateDeleteView(generics.UpdateAPIView,
                            generics.mixins.DestroyModelMixin):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
@@ -174,13 +174,13 @@ class ResultSubmitView(APIView):
             quiz = serializer.validated_data['quiz']
             answers = serializer.validated_data['answers']
             time_taken = serializer.validated_data['time_taken']
-            total_score = serializer.validated_data['total_score']
+            score = serializer.validated_data['score']
 
             try:
                 result = Result.objects.create(
                     user=user,
                     quiz=quiz,
-                    total_score=total_score,
+                    score=score,
                     time_taken=time_taken,
                     submission_time=timezone.now()
                 )
@@ -223,28 +223,39 @@ class ResultSubmitView(APIView):
 
 
 class UserResultsWithAnswersView(APIView):
-    permission_classes = [IsAuthenticated, IsMaster]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, user_id, *args, **kwargs):
         try:
             user = CustomUser.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        results = Result.objects.filter(user=user)
-        serializer = ResultWithAnswersSerializer(results, many=True)
-        return Response(serializer.data)
+            results = Result.objects.filter(user=user)
+            serializer = ResultWithAnswersSerializer(results, many=True)
+            return Response(serializer.data)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': 'An error occurred', 'details': str(e)},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SendQuizEmailView(APIView):
+    permission_classes = [IsAuthenticated, IsExaminer]
+
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
         serializer = QuizEmailSendSerializer(data=request.data)
-        if serializer.is_valid():
-            quiz = serializer.validated_data['quiz_id']
+        try:
+            serializer.is_valid(raise_exception=True)
+            quiz_id = serializer.validated_data['quiz_id']
+            quiz = Quiz.objects.get(pk=quiz_id)
             recipient_emails = serializer.validated_data['recipient_emails']
 
             send_quiz_link_to_students(recipient_emails, quiz.unique_link)
 
             return Response({'message': 'Emails sent successfully.'})
-        return Response(serializer.errors, status=400)
+        except ValidationError as ve:
+            return Response({'error': ve.detail}, status=400)
+        except Quiz.DoesNotExist:
+            return Response({'error': 'Quiz not found'}, status=404)
+        except Exception as e:
+            return Response({'error': 'An error occurred', 'details': str(e)}, status=500)

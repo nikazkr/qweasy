@@ -110,7 +110,7 @@ class ResultSubmitSerializer(serializers.Serializer):
     quiz = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
     answers = serializers.ListSerializer(child=ResultSingleSerializer())
     time_taken = serializers.DurationField(required=True)
-    total_score = serializers.IntegerField(required=True)
+    score = serializers.IntegerField(required=True)
 
     def validate(self, data):
         for answer_data in data['answers']:
@@ -140,5 +140,5 @@ class ResultWithAnswersSerializer(serializers.ModelSerializer):
 
 
 class QuizEmailSendSerializer(serializers.Serializer):
-    quiz_id = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
+    quiz_id = serializers.IntegerField()
     recipient_emails = serializers.ListField(child=serializers.EmailField())

@@ -61,7 +61,7 @@ class Quiz(models.Model):
     title = models.CharField(max_length=100)
     questions = models.ManyToManyField(Question, related_name='quiz')
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    time_limit = models.DurationField()
+    time_limit = models.IntegerField(default=0)  # in munutes
     unique_link = models.CharField(max_length=50, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
@@ -88,7 +88,7 @@ class Result(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.PROTECT)
     score = models.PositiveIntegerField(default=0)
-    time_taken = models.DurationField()
+    time_taken = models.IntegerField(default=0)  # in minutes
     submission_time = models.DateTimeField()
 
     class Meta:
