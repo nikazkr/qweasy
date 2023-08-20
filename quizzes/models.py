@@ -22,11 +22,9 @@ class Question(models.Model):
         (2, 'Open-Ended'),
     )
     LEVEL = (
-        (0, 'Elementary'),
-        (1, 'Beginner'),
-        (2, 'Intermediate'),
-        (3, 'Advanced'),
-        (4, 'Expert'),
+        (0, 'Easy'),
+        (1, 'Medium'),
+        (2, 'Hard'),
     )
     category = models.ForeignKey(Category, default=1, on_delete=models.DO_NOTHING)
     text = models.TextField(max_length=200)
@@ -64,7 +62,7 @@ class Quiz(models.Model):
     questions = models.ManyToManyField(Question, related_name='quiz')
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     time_limit = models.DurationField()
-    unique_link = models.CharField(max_length=50)
+    unique_link = models.CharField(max_length=50, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
 
@@ -77,13 +75,35 @@ class Quiz(models.Model):
         return self.title
 
 
-class Score(models.Model):
+class QuestionScore(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     score = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"Quiz: {self.quiz.title} - Question: {self.question.id} - Score: {self.score}"
+
+
+class Result(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.PROTECT)
+    score = models.PositiveIntegerField(default=0)
+    time_taken = models.DurationField()
+    submission_time = models.DateTimeField()
+
+    class Meta:
+        unique_together = ('user', 'submission_time', 'quiz')
+
+    def __str__(self):
+        return f"User: {self.user.username} - Quiz: {self.quiz.title} - Date: {self.submission_time.isoformat()}"
+
+
+class UserAnswer(models.Model):
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    quiz_result = models.ForeignKey(Result, on_delete=models.CASCADE, related_name='answers')
+    selected_answers = models.ManyToManyField(Answer, related_name='selected_answers', blank=True)
+    open_ended_answer = models.TextField(blank=True, null=True)
+    reviewed = models.BooleanField(default=False)
 
 # class QuestionFeedback(models.Model):
 #     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

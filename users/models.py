@@ -28,4 +28,4 @@ class CustomUser(AbstractUser):
     total_time_spent = models.DurationField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.role} - ( {self.email} ) {self.first_name} {self.last_name} "
+        return f"{self.role} - ( {self.email} ) {self.first_name} {self.last_name} - {self.username}"

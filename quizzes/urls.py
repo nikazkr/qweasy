@@ -1,15 +1,17 @@
 from django.urls import path
 
-from .views import QuestionSelectView, QuestionCreateView, QuestionFavoriteView, QuestionUpdateDeleteView, \
-    QuizCreateView, QuizDetailView, QuizUpdateView, QuizDeleteView
+from .views import QuestionSelectView, QuestionCreateView, QuestionFavoriteView, QuizCreateView, QuizDetailView, \
+    ResultSubmitView, UserResultsWithAnswersView, QuestionDetailView, QuizUpdateDeleteView, QuizListView
 
 urlpatterns = [
     path('question/create/', QuestionCreateView.as_view(), name='question-create'),
-    path('question/select/', QuestionSelectView.as_view(), name='question-select'),
-    path('question/<int:pk>/', QuestionUpdateDeleteView.as_view(), name='question-update-delete'),
+    path('question/', QuestionSelectView.as_view(), name='question-select'),
+    path('question/<int:pk>/', QuestionDetailView.as_view(), name='question-detail'),
     path('question/<int:pk>/favorite/', QuestionFavoriteView.as_view(), name='question-favorite'),
     path('quiz/create/', QuizCreateView.as_view(), name='quiz-creation'),
     path('quiz/<str:quiz_unique_link>/', QuizDetailView.as_view(), name='quiz-detail'),
-    path('quiz/<int:pk>/update/', QuizUpdateView.as_view(), name='quiz-update'),
-    path('quiz/<int:pk>/delete/', QuizDeleteView.as_view(), name='quiz-delete'),
+    path('quiz/<int:pk>', QuizUpdateDeleteView.as_view(), name='quiz-update-delete'),
+    path('quiz/', QuizListView.as_view(), name='quiz-list'),
+    path('quiz/submit', ResultSubmitView.as_view(), name='quiz-submit'),
+    path('user-results/<int:user_id>/', UserResultsWithAnswersView.as_view(), name='user-results'),
 ]

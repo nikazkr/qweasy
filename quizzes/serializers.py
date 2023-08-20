@@ -1,14 +1,8 @@
 import shortuuid
 from rest_framework import serializers
 
-from quizzes.models import Question, Answer, Quiz, Score
-
-
-class QuestionSelectSerializer(serializers.Serializer):
-    category = serializers.IntegerField(required=False)
-    difficulty = serializers.IntegerField(required=False)
-    answer_type = serializers.IntegerField(required=False)
-    quantity = serializers.IntegerField(min_value=1, max_value=100, required=True)
+from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, UserAnswer
+from users.models import CustomUser
 
 
 class AnswerSerializer(serializers.ModelSerializer):
@@ -25,7 +19,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data):
-        answers_data = validated_data.pop('answers')  # Extract answers data
+        answers_data = validated_data.pop('answers')
         question = Question.objects.create(**validated_data)
 
         for answer_data in answers_data:
@@ -49,27 +43,25 @@ class QuestionSerializer(serializers.ModelSerializer):
         return instance
 
 
-class ScoreSerializer(serializers.ModelSerializer):
+class QuestionScoreSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Score
+        model = QuestionScore
         fields = ('question', 'score')
 
 
 class QuizCreateSerializer(serializers.ModelSerializer):
-    scores = ScoreSerializer(many=True, write_only=True)  # Nested field for scores
+    scores = QuestionScoreSerializer(many=True, write_only=True)
 
     class Meta:
         model = Quiz
         fields = ('title', 'category', 'questions', 'time_limit', 'scores')
 
     def create(self, validated_data):
-        scores_data = validated_data.pop('scores')  # Extract scores data
-        questions_data = validated_data.pop('questions')  # Extract questions data
+        scores_data = validated_data.pop('scores')
+        questions_data = validated_data.pop('questions')
 
-        # Generate unique link
         unique_link = shortuuid.uuid()
 
-        # Include the unique_link in validated_data
         validated_data['unique_link'] = unique_link
 
         quiz = Quiz.objects.create(**validated_data)
@@ -77,9 +69,8 @@ class QuizCreateSerializer(serializers.ModelSerializer):
         for score_data in scores_data:
             question_id = score_data['question'].id
             score_value = score_data['score']
-            Score.objects.create(quiz=quiz, question_id=question_id, score=score_value)
+            QuestionScore.objects.create(quiz=quiz, question_id=question_id, score=score_value)
 
-        # Add related questions using the set() method
         quiz.questions.set(questions_data)
 
         return quiz
@@ -96,8 +87,8 @@ class QuizDetailSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
 
         question_ids = [question_data['id'] for question_data in representation['questions']]
-        scores = Score.objects.filter(quiz=instance, question_id__in=question_ids)
-        score_data = ScoreSerializer(scores, many=True).data
+        scores = QuestionScore.objects.filter(quiz=instance, question_id__in=question_ids)
+        score_data = QuestionScoreSerializer(scores, many=True).data
 
         for question_data in representation['questions']:
             question_id = question_data['id']
@@ -105,3 +96,44 @@ class QuizDetailSerializer(serializers.ModelSerializer):
             question_data['scores'] = related_scores
 
         return representation
+
+
+class ResultSingleSerializer(serializers.Serializer):
+    question = serializers.PrimaryKeyRelatedField(queryset=Question.objects.all())
+    selected_answers = serializers.PrimaryKeyRelatedField(queryset=Answer.objects.all(), many=True, required=False)
+    open_ended_answer = serializers.CharField(allow_blank=True, required=False)
+    answer_type = serializers.IntegerField(required=True)
+
+
+class ResultSubmitSerializer(serializers.Serializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all())
+    quiz = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
+    answers = serializers.ListSerializer(child=ResultSingleSerializer())
+    time_taken = serializers.DurationField(required=True)
+    total_score = serializers.IntegerField(required=True)
+
+    def validate(self, data):
+        for answer_data in data['answers']:
+            answer_type = answer_data['answer_type']
+
+            if answer_type == 2 and not answer_data.get('open_ended_answer'):
+                raise serializers.ValidationError("Open-ended answer is required for this question type.")
+            elif answer_type in [0, 1] and not answer_data.get('selected_answers'):
+                raise serializers.ValidationError("Selected answers are required for this question type.")
+
+        return data
+
+
+class UserAnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAnswer
+        fields = '__all__'
+
+
+class ResultWithAnswersSerializer(serializers.ModelSerializer):
+    user_answers = UserAnswerSerializer(source='answers', many=True)
+
+    class Meta:
+        model = Result
+        fields = '__all__'
+        depth = 1

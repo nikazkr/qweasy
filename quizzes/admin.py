@@ -4,7 +4,8 @@ from quizzes.models import (
     Category,
     Question,
     Answer,
-    Quiz
+    Quiz,
+    QuestionScore
 )
 
 
@@ -13,9 +14,14 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ['name']
 
 
+class QuestionScoreInlineAdmin(admin.TabularInline):
+    model = QuestionScore
+
+
 @admin.register(Quiz)
 class QuizAdmin(admin.ModelAdmin):
     list_display = ['title']
+    inlines = [QuestionScoreInlineAdmin]
 
 
 class AnswerInlineAdmin(admin.TabularInline):
