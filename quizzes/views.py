@@ -1,11 +1,14 @@
-from django.contrib.auth.models import User
-from django.db import transaction
+from json import JSONDecodeError
+
+from django.core.serializers.base import DeserializationError
+from django.db import transaction, IntegrityError
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
-from rest_framework.exceptions import NotFound, ValidationError
-from rest_framework.generics import get_object_or_404
+from rest_framework.exceptions import ValidationError, APIException
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -44,11 +47,18 @@ class QuestionCreateView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = QuestionSerializer(data=request.data)
 
-        if serializer.is_valid():
+        try:
+            serializer.is_valid(raise_exception=True)
             question = serializer.save()
             return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError:
+            return Response({'error': 'Integrity error occurred'}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValidationError, DeserializationError):
+            return Response({'error': 'Validation error occurred'}, status=status.HTTP_400_BAD_REQUEST)
+        except JSONDecodeError:
+            return Response({'error': 'JSON decoding error occurred'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -143,6 +153,7 @@ class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
     permission_classes = [IsAuthenticated, IsExaminer]
 
+    @method_decorator(cache_page(60))
     def get(self, request, quiz_unique_link):
         try:
             quiz = Quiz.objects.get(unique_link=quiz_unique_link)
@@ -168,15 +179,16 @@ class ResultSubmitView(APIView):
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
         serializer = ResultSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            quiz = serializer.validated_data['quiz']
-            answers = serializer.validated_data['answers']
-            time_taken = serializer.validated_data['time_taken']
-            score = serializer.validated_data['score']
+        user = serializer.validated_data['user']
+        quiz = serializer.validated_data['quiz']
+        answers = serializer.validated_data['answers']
+        time_taken = serializer.validated_data['time_taken']
+        score = serializer.validated_data['score']
 
-            try:
+        try:
+            with transaction.atomic():
                 result = Result.objects.create(
                     user=user,
                     quiz=quiz,
@@ -201,25 +213,23 @@ class ResultSubmitView(APIView):
 
                     user_answer_objects.append(user_answer)
 
-                with transaction.atomic():
-                    user_answers = UserAnswer.objects.bulk_create(user_answer_objects)
+                user_answers = UserAnswer.objects.bulk_create(user_answer_objects)
 
                 for user_answer, answer_data in zip(user_answers, answers):
                     answer_type = answer_data['answer_type']
                     if answer_type != 2 and answer_data['selected_answers']:
                         user_answer.selected_answers.add(*answer_data['selected_answers'])
 
-            except Exception as e:
-                # If an exception occurs, delete the created UserAnswer and Result instances
-                if 'user_answers' in locals():
-                    UserAnswer.objects.filter(pk__in=[ua.pk for ua in user_answers]).delete()
-                if 'result' in locals():
-                    result.delete()  # noqa
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            if 'user_answers' in locals():
+                UserAnswer.objects.filter(pk__in=[ua.pk for ua in user_answers]).delete()
+            if 'result' in locals():
+                result.delete()
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({"message": "User answers submitted successfully."}, status=status.HTTP_200_OK)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "User answers submitted successfully."}, status=status.HTTP_200_OK)
+
+
 
 
 class UserResultsWithAnswersView(APIView):
@@ -239,7 +249,7 @@ class UserResultsWithAnswersView(APIView):
 
 
 class SendQuizEmailView(APIView):
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
@@ -250,7 +260,7 @@ class SendQuizEmailView(APIView):
             quiz = Quiz.objects.get(pk=quiz_id)
             recipient_emails = serializer.validated_data['recipient_emails']
 
-            send_quiz_link_to_students(recipient_emails, quiz.unique_link)
+            send_quiz_link_to_students.delay(recipient_emails, quiz.unique_link)
 
             return Response({'message': 'Emails sent successfully.'})
         except ValidationError as ve:

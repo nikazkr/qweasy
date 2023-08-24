@@ -36,18 +36,42 @@ within an organization.
 
 ## Technologies Used
 
-Qweasy is built using a combination of cutting-edge technologies to provide a robust and seamless experience:
+Qweasy utilizes a powerful stack of technologies to ensure a robust and streamlined experience for users:
 
-- **Python Django and Django REST Framework** for backend development
-- **JWT tokens** for secure authentication and authorization
-- **Google OAuth2** for streamlined user authentication
-- **Docker** for containerization and deployment
-- **Git** for version control and collaboration
+### Backend Development
 
-Furthermore, Qweasy takes advantage of Google Cloud's powerful services, enhancing its capabilities and reliability. The
-app is deployed on Google Cloud Platform (GCP), utilizing its scalable infrastructure and efficient cloud environment.
-This integration with Google Cloud services ensures that Qweasy delivers a seamless user experience with improved
-performance, availability, and security.
+- **Python Django and Django REST Framework:** Qweasy leverages the Django framework for building a solid backend foundation. The Django REST Framework enhances API development, allowing for efficient creation of RESTful APIs.
+
+### Authentication and Authorization
+
+- **JWT Tokens:** JSON Web Tokens are employed to ensure secure authentication and authorization mechanisms. This helps in maintaining user sessions and controlling access to various parts of the application.
+
+- **Google OAuth2:** Qweasy integrates Google OAuth2 for user authentication. This simplifies the registration and login process by allowing users to use their Google accounts.
+
+### Scalability and Containerization
+
+- **Docker:** The application is containerized using Docker. This approach provides consistency across different environments and simplifies the deployment process.
+
+### Version Control and Collaboration
+
+- **Git:** Git is used for version control, enabling efficient collaboration among developers. It helps manage code changes, track history, and merge contributions seamlessly.
+
+### Background Task Processing
+
+- **Celery with Redis as Broker:** To handle asynchronous tasks efficiently, Qweasy utilizes Celery with Redis as the message broker. This ensures tasks like email notifications or data processing can be executed in the background without affecting the user experience.
+
+### Caching and Performance Optimization
+
+- **Redis as Cache:** Redis is employed as a caching mechanism to enhance application performance. Cached data can be quickly retrieved, reducing the load on the database and improving response times.
+
+### Cloud Integration
+
+Qweasy benefits from Google Cloud's services to elevate its capabilities and reliability:
+
+- **Google Cloud Platform (GCP) Deployment:** The application is deployed on GCP, capitalizing on its scalable infrastructure and dependable cloud environment. This integration ensures that Qweasy delivers a seamless user experience with heightened performance, availability, and security.
+
+This comprehensive technology stack ensures that Qweasy is equipped to provide users with a seamless, secure, and efficient platform for their needs.
+
 
 ## Getting Started
 
@@ -61,31 +85,12 @@ To run Qweasy on your local environment using Docker, follow these steps:
    ```bash
    git clone https://github.com/your-username/qweasy.git
 
-- Set up environment variables:
+- #### Set up environment variables:
 
-  Create a .env file in the project root directory and define the following variables:
-
-  ```bash
-  SECRET_KEY=
-  
-  DEBUG=True
-  
-  POSTGRES_USER=
-  POSTGRES_DB=
-  POSTGRES_PASSWORD=
-  POSTGRES_HOST=
-  POSTGRES_PORT=
-  
-  CALLBACK_URL=
-  CLIENT_ID=
-  CLIENT_SECRET=
-  
-  EMAIL_USE_TLS=
-  EMAIL_PORT=
-  EMAIL_HOST_USER=
-  EMAIL_HOST_PASSWORD=
-  ```
-  These variables are also available in *.env.sample* file, located in projects main folder
+    - Create a .env file in the project root directory following the structure provided in the ***.env.sample*** file,
+      located in the project's main folder.
+    - This sample file contains placeholders for the variables that need to be defined.
+    - provide appropriate values for each variable according to your project's needs.
 
 ### Running the App:
 
@@ -154,7 +159,6 @@ development of Qweasy:
 - Django: [https://www.djangoproject.com/](https://www.djangoproject.com/)
 - Django REST framework: [https://www.django-rest-framework.org/](https://www.django-rest-framework.org/)
 - Docker: [https://www.docker.com/](https://www.docker.com/)
-- Chat-GPT [https://chat.openai.com/](https://chat.openai.com/)
 
 Special thanks to the open-source community for their valuable contributions.
 

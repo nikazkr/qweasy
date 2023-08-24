@@ -61,7 +61,7 @@ class Quiz(models.Model):
     title = models.CharField(max_length=100)
     questions = models.ManyToManyField(Question, related_name='quiz')
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    time_limit = models.IntegerField(default=0)  # in munutes
+    time_limit = models.DurationField()
     unique_link = models.CharField(max_length=50, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)

@@ -12,8 +12,6 @@ services:
   redis:
     image: redis:latest
     restart: always
-    volumes:
-      - redis_data:/data
     env_file:
       - .env
     ports:
@@ -31,6 +29,20 @@ services:
     env_file:
       - .env
     depends_on:
+      - db
+      - redis
+#    entrypoint: ''
+  celery:
+    build: .
+    entrypoint: ''
+    command: celery -A core worker -l INFO
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - web_api
+      - redis
       - db
 volumes:
   data:

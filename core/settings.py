@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-q)03pvh!n)7vhk93!%xzvszm*xdag1zv2(w-%n^l5lxt4vvx6@'
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG')
@@ -87,8 +87,12 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB'),
+        'USER': os.environ.get('POSTGRES_USER'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+        'HOST': os.environ.get('POSTGRES_HOST'),
+        'PORT': os.environ.get('POSTGRES_PORT'),
     }
 }
 
@@ -166,8 +170,8 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': '834932598827-biid2qe0ulv0a0vujhqn03mgtbjup8g3.apps.googleusercontent.com',
-            'secret': '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',
+            'client_id': os.environ.get('CLIENT_ID'),
+            'secret': os.environ.get('CLIENT_SECRET'),
             'key': '',
         }
     }
@@ -179,7 +183,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://localhost:6379/1",
+        "LOCATION": "redis://redis:6379/1",
         "TIMEOUT": 300,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient"
@@ -187,17 +191,15 @@ CACHES = {
     }
 }
 
-
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-# EMAIL_HOST = os.environ.get('EMAIL_HOST')
-# EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS")
-# EMAIL_PORT = os.environ.get("EMAIL_PORT")
-# EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-# EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS")
+EMAIL_PORT = os.environ.get("EMAIL_PORT")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_HOST_USER = 'qweasy.testing@gmail.com'
-EMAIL_HOST_PASSWORD = 'wxvgsfyuuplluouq'
-EMAIL_PORT = 587  # Use the appropriate port
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
+
+CELERY_BROKER_URL = 'redis://redis:6379'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
