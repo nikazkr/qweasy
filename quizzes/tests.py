@@ -18,12 +18,12 @@ class BaseAPITestCase(APITestCase):
         self.quiz = Quiz.objects.create(
             title='Test Quiz',
             category=self.category,
-            time_limit=30,
+            time_limit='P4DT1H15M20S',
             unique_link='test-link'
         )
         self.quiz.questions.add(self.question)
         self.client.force_authenticate(user=self.user)
-        self.result = Result.objects.create(user=self.user, quiz=self.quiz, time_taken=30, score=10,
+        self.result = Result.objects.create(user=self.user, quiz=self.quiz, time_taken='P4DT1H15M20S', score=10,
                                             submission_time=timezone.now())
 
 

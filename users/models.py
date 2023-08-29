@@ -3,27 +3,28 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
-    ROLE_CHOICES = (
-        ('examiner', 'Examiner'),
-        ('noob', 'Noob'),
-    )
+    """
+        Custom user model representing users of the application.
+    """
 
-    LEVEL_CHOICES = (
-        ('junior', 'Junior'),
-        ('middle', 'Middle'),
-        ('senior', 'Senior'),
-    )
+    class Role(models.TextChoices):
+        EXAMINER = 'examiner', 'Examiner'
+        NOOB = 'noob', 'Noob'
 
-    GENDER_CHOICES = (
-        ('male', 'Male'),
-        ('female', 'Female'),
-        ('other', 'Other'),
-    )
+    class Level(models.TextChoices):
+        JUNIOR = 'junior', 'Junior'
+        MIDDLE = 'middle', 'Middle'
+        SENIOR = 'senior', 'Senior'
 
-    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    class Gender(models.TextChoices):
+        MALE = 'male', 'Male'
+        FEMALE = 'female', 'Female'
+        OTHER = 'other', 'Other'
+
+    gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
-    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, null=True, blank=True)
+    role = models.CharField(max_length=10, choices=Role.choices)
+    level = models.CharField(max_length=10, choices=Level.choices, null=True, blank=True)
     total_score = models.IntegerField(null=True, blank=True)
     total_time_spent = models.DurationField(null=True, blank=True)
 

@@ -5,9 +5,9 @@ from rest_framework.authtoken.models import Token
 
 
 class CustomRegisterSerializer(RegisterSerializer):
-    role = serializers.ChoiceField(choices=CustomUser.ROLE_CHOICES)
-    level = serializers.ChoiceField(choices=CustomUser.LEVEL_CHOICES, required=False)
-    gender = serializers.ChoiceField(choices=CustomUser.GENDER_CHOICES, required=False)
+    role = serializers.ChoiceField(choices=CustomUser.Role)
+    level = serializers.ChoiceField(choices=CustomUser.Level, required=False)
+    gender = serializers.ChoiceField(choices=CustomUser.Gender, required=False)
     age = serializers.IntegerField(required=False)
 
     def custom_signup(self, request, user):

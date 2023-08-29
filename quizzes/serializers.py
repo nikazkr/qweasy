@@ -1,7 +1,6 @@
-import shortuuid
 from rest_framework import serializers
 
-from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, UserAnswer
+from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer
 from users.models import CustomUser
 
 
@@ -59,10 +58,6 @@ class QuizCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         scores_data = validated_data.pop('scores')
         questions_data = validated_data.pop('questions')
-
-        unique_link = shortuuid.uuid()
-
-        validated_data['unique_link'] = unique_link
 
         quiz = Quiz.objects.create(**validated_data)
 
@@ -124,14 +119,14 @@ class ResultSubmitSerializer(serializers.Serializer):
         return data
 
 
-class UserAnswerSerializer(serializers.ModelSerializer):
+class SubmittedAnswerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = UserAnswer
+        model = SubmittedAnswer
         fields = '__all__'
 
 
 class ResultWithAnswersSerializer(serializers.ModelSerializer):
-    user_answers = UserAnswerSerializer(source='answers', many=True)
+    user_answers = SubmittedAnswerSerializer(source='answers', many=True)
 
     class Meta:
         model = Result

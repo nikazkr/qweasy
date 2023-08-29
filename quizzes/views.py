@@ -1,14 +1,9 @@
-from json import JSONDecodeError
-
-from django.core.serializers.base import DeserializationError
-from django.db import transaction, IntegrityError
+from django.db import transaction
+from django.http import Http404
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
-from rest_framework.exceptions import ValidationError, APIException
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,12 +11,34 @@ from rest_framework.views import APIView
 from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsExaminer
-from .models import Question, Favorite, Quiz, Result, UserAnswer
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer
 from .serializers import QuestionSerializer, QuizCreateSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer
 
 
 class QuestionCreateView(APIView):
+    """
+    API view for creating a new question.
+
+    Permissions:
+        - User must be authenticated.
+        - User must have examiner privileges.
+
+    Args:
+        request (HttpRequest): The request object containing user authentication and question data.
+
+    Returns:
+        Response: Returns the serialized data of the created question.
+
+    Raises:
+        ValidationError: If the submitted question data is invalid.
+
+    Notes:
+        - This view enables authorized examiners to create new questions with specific attributes.
+        - The question data should follow the structure defined in the 'QuestionSerializer'.
+        - An example request structure is provided in the OpenAPI specification.
+        - Upon successful creation, the question data is returned in the response.
+    """
     permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
@@ -47,18 +64,10 @@ class QuestionCreateView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = QuestionSerializer(data=request.data)
 
-        try:
-            serializer.is_valid(raise_exception=True)
-            question = serializer.save()
-            return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED)
-        except IntegrityError:
-            return Response({'error': 'Integrity error occurred'}, status=status.HTTP_400_BAD_REQUEST)
-        except (ValidationError, DeserializationError):
-            return Response({'error': 'Validation error occurred'}, status=status.HTTP_400_BAD_REQUEST)
-        except JSONDecodeError:
-            return Response({'error': 'JSON decoding error occurred'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.save()
+
+        return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED)
 
 
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -68,6 +77,25 @@ class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class QuestionSelectView(APIView):
+    """
+    API View for selecting questions based on various filters.
+
+    This view allows users to retrieve a list of questions based on filters
+    such as category, difficulty, answer type, quantity, and favorited status.
+
+    Permissions:
+        - User must be authenticated.
+        - User must have examiner privileges.
+
+    Args:
+        request (HttpRequest): The HTTP request object.
+
+    Returns:
+        Response: A Response object containing the selected questions.
+
+    Note:
+        -This view assumes that the user is authenticated and has the required permissions.
+    """
     permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
@@ -86,46 +114,64 @@ class QuestionSelectView(APIView):
         responses={status.HTTP_200_OK: QuestionSerializer(many=True)},
     )
     def get(self, request, *args, **kwargs):
-        try:
-            category = request.query_params.get('category')
-            difficulty = request.query_params.get('difficulty')
-            answer_type = request.query_params.get('answer_type')
-            quantity = int(request.query_params.get('quantity', 10))  # Default to 10 if not provided
-            favorites = request.query_params.get('favorited_only') == 'true'  # Convert string to boolean
+        category = request.query_params.get('category')
+        difficulty = request.query_params.get('difficulty')
+        answer_type = request.query_params.get('answer_type')
+        quantity = request.query_params.get('quantity')
+        favorites = request.query_params.get('favorited_only') == 'true'  # Convert string to boolean
 
-            user = request.user
+        user = request.user
 
-            questions = Question.objects.all()
+        questions = Question.objects.all()
 
-            if favorites:
-                favorite_question_ids = Favorite.objects.filter(user=user).values_list('question_id', flat=True)
-                questions = questions.filter(id__in=favorite_question_ids)
+        if favorites:
+            favorite_question_ids = Favorite.objects.filter(user=user).values_list('question_id', flat=True)
+            questions = questions.filter(id__in=favorite_question_ids)
 
-            if category:
-                questions = questions.filter(category=category)
-            if answer_type:
-                questions = questions.filter(answer_type=answer_type)
-            if difficulty:
-                questions = questions.filter(difficulty=difficulty)
+        if category:
+            questions = questions.filter(category=category)
+        if answer_type:
+            questions = questions.filter(answer_type=answer_type)
+        if difficulty:
+            questions = questions.filter(difficulty=difficulty)
 
+        if quantity:
+            quantity = int(quantity)
             selected_questions = questions[:quantity]
-            question_serializer = QuestionSerializer(selected_questions, many=True)
-            return Response({'questions': question_serializer.data})
+        else:
+            selected_questions = questions
 
-        except ValueError:
-            return Response({'error': 'Invalid quantity parameter'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        question_serializer = QuestionSerializer(selected_questions, many=True)
+
+        return Response({'questions': question_serializer.data})
 
 
 class QuestionFavoriteView(APIView):
+    """
+    API view for managing favorite questions.
+
+    Args:
+        pk (int): The primary key of the question to mark as favorite or remove from favorites.
+
+    Returns:
+        Response: Returns a response indicating the status of the favorite operation.
+            - If the question was successfully marked as a favorite, returns a message indicating so.
+            - If the question was successfully removed from favorites, returns a message indicating so.
+
+    Raises:
+        Http404: If the question with the given ID is not found or does not exist.
+
+    Permissions:
+        - User must be authenticated.
+        - User must have examiner privileges.
+    """
     permission_classes = [IsAuthenticated, IsExaminer]
 
     def post(self, request, pk):
         try:
             question = Question.objects.get(pk=pk)
         except Question.DoesNotExist:
-            return Response({"error": "Question not found"}, status=status.HTTP_404_NOT_FOUND)
+            raise Http404('Question not found')
 
         user = request.user
         favorite, created = Favorite.objects.get_or_create(user=user, question=question)
@@ -153,14 +199,13 @@ class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
     permission_classes = [IsAuthenticated, IsExaminer]
 
-    @method_decorator(cache_page(60))
     def get(self, request, quiz_unique_link):
         try:
             quiz = Quiz.objects.get(unique_link=quiz_unique_link)
             serializer = self.serializer_class(quiz)
             return Response(serializer.data)
         except Quiz.DoesNotExist:
-            return Response({"error": "Quiz not found"}, status=status.HTTP_404_NOT_FOUND)
+            raise Http404('Quiz not found')
 
 
 class QuizUpdateDeleteView(generics.UpdateAPIView,
@@ -174,7 +219,29 @@ class QuizUpdateDeleteView(generics.UpdateAPIView,
 
 
 class ResultSubmitView(APIView):
-    permission_classes = [IsAuthenticated]
+    """
+    API view for submitting quiz results.
+
+    Args:
+        request (HttpRequest): The request object containing result data.
+
+    Returns:
+        Response: Returns a response indicating the successful submission of user answers.
+
+    Raises:
+        ValidationError: If the submitted data is invalid.
+
+    Permissions:
+        - User must be authenticated.
+
+    Notes:
+        - This view processes the submitted quiz result data, including user's selected answers,
+          time taken, and final score, and creates corresponding records in the database.
+        - A bulk creation of submitted answers is performed within a database transaction.
+        - For multiple-choice questions (answer type 1), selected answer choices are associated with
+          the submitted answers.
+    """
+    # permission_classes = [IsAuthenticated]
 
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
@@ -187,52 +254,56 @@ class ResultSubmitView(APIView):
         time_taken = serializer.validated_data['time_taken']
         score = serializer.validated_data['score']
 
-        try:
-            with transaction.atomic():
-                result = Result.objects.create(
-                    user=user,
-                    quiz=quiz,
-                    score=score,
-                    time_taken=time_taken,
-                    submission_time=timezone.now()
+        with transaction.atomic():
+            result = Result.objects.create(
+                user=user,
+                quiz=quiz,
+                score=score,
+                time_taken=time_taken,
+                submission_time=timezone.now()
+            )
+
+            user_answer_objects = []
+
+            for answer_data in answers:
+                question = answer_data['question']
+                open_ended_answer = answer_data.get('open_ended_answer')
+
+                user_answer = SubmittedAnswer(
+                    question=question,
+                    open_ended_answer=open_ended_answer,
+                    quiz_result=result
                 )
 
-                user_answer_objects = []
+                user_answer_objects.append(user_answer)
 
-                for answer_data in answers:
-                    question = answer_data['question']
-                    answer_type = answer_data['answer_type']
-                    selected_answers = answer_data.get('selected_answers')
-                    open_ended_answer = answer_data.get('open_ended_answer')
+            user_answers = SubmittedAnswer.objects.bulk_create(user_answer_objects)
 
-                    user_answer = UserAnswer(
-                        question=question,
-                        open_ended_answer=open_ended_answer,
-                        quiz_result=result
-                    )
-
-                    user_answer_objects.append(user_answer)
-
-                user_answers = UserAnswer.objects.bulk_create(user_answer_objects)
-
-                for user_answer, answer_data in zip(user_answers, answers):
-                    answer_type = answer_data['answer_type']
-                    if answer_type != 2 and answer_data['selected_answers']:
-                        user_answer.selected_answers.add(*answer_data['selected_answers'])
-
-        except Exception as e:
-            if 'user_answers' in locals():
-                UserAnswer.objects.filter(pk__in=[ua.pk for ua in user_answers]).delete()
-            if 'result' in locals():
-                result.delete()
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            for user_answer, answer_data in zip(user_answers, answers):
+                answer_type = answer_data['answer_type']
+                if answer_type != 2 and answer_data['selected_answers']:
+                    user_answer.selected_answers.add(*answer_data['selected_answers'])
 
         return Response({"message": "User answers submitted successfully."}, status=status.HTTP_200_OK)
 
 
-
-
 class UserResultsWithAnswersView(APIView):
+    """
+    API view for retrieving user quiz results with answers.
+
+    Args:
+        user_id (int): The ID of the user whose results are being retrieved.
+
+    Returns:
+        Response: Returns a response containing the serialized quiz results along with detailed answer information.
+
+    Raises:
+        Http404: If the user with the given ID is not found or does not exist.
+
+    Permissions:
+        - User must be authenticated.
+        - User must have examiner privileges.
+    """
     permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, user_id, *args, **kwargs):
@@ -240,16 +311,29 @@ class UserResultsWithAnswersView(APIView):
             user = CustomUser.objects.get(id=user_id)
             results = Result.objects.filter(user=user)
             serializer = ResultWithAnswersSerializer(results, many=True)
-            return Response(serializer.data)
-        except CustomUser.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': 'An error occurred', 'details': str(e)},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Quiz.DoesNotExist:
+            raise Http404('User not found')
+        return Response(serializer.data)
 
 
 class SendQuizEmailView(APIView):
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    """
+    API view to send quiz emails to specified recipients.
+
+    Args:
+        request (HttpRequest): The request object containing the list of recipient emails and quiz ID.
+
+    Returns:
+        Response: A success message if emails are sent successfully.
+
+    Raises:
+        Http404: If the quiz with the given ID is not found.
+
+    Permissions:
+        - User must be authenticated.
+        - User must have examiner privileges.
+    """
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
@@ -261,11 +345,6 @@ class SendQuizEmailView(APIView):
             recipient_emails = serializer.validated_data['recipient_emails']
 
             send_quiz_link_to_students.delay(recipient_emails, quiz.unique_link)
-
-            return Response({'message': 'Emails sent successfully.'})
-        except ValidationError as ve:
-            return Response({'error': ve.detail}, status=400)
         except Quiz.DoesNotExist:
-            return Response({'error': 'Quiz not found'}, status=404)
-        except Exception as e:
-            return Response({'error': 'An error occurred', 'details': str(e)}, status=500)
+            raise Http404('Quiz not found')
+        return Response({'message': 'Emails sent successfully.'})

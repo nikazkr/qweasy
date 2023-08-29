@@ -1,3 +1,4 @@
+import shortuuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -16,21 +17,21 @@ class Category(models.Model):
 
 
 class Question(models.Model):
-    TYPE = (
-        (0, 'One Answer'),
-        (1, 'Multiple Answers'),
-        (2, 'Open-Ended'),
-    )
-    LEVEL = (
-        (0, 'Easy'),
-        (1, 'Medium'),
-        (2, 'Hard'),
-    )
+    class AnswerType(models.IntegerChoices):
+        ONE_ANSWER = 0, 'One Answer'
+        MULTIPLE_ANSWERS = 1, 'Multiple Answers'
+        OPEN_ENDED = 2, 'Open-Ended'
+
+    class DifficultyLevel(models.IntegerChoices):
+        EASY = 0, 'Easy'
+        MEDIUM = 1, 'Medium'
+        HARD = 2, 'Hard'
+
     category = models.ForeignKey(Category, default=1, on_delete=models.DO_NOTHING)
     text = models.TextField(max_length=200)
     image = models.ImageField(upload_to='question_images/', blank=True, null=True)
-    answer_type = models.IntegerField(choices=TYPE, default=0)
-    difficulty = models.IntegerField(choices=LEVEL, default=0)
+    answer_type = models.IntegerField(choices=AnswerType.choices, default=AnswerType.ONE_ANSWER)
+    difficulty = models.IntegerField(choices=DifficultyLevel.choices, default=DifficultyLevel.EASY)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
 
@@ -66,6 +67,11 @@ class Quiz(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        if not self.unique_link:
+            self.unique_link = shortuuid.uuid()
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = _('Quiz')
         verbose_name_plural = _('Quizzes')
@@ -88,7 +94,7 @@ class Result(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.PROTECT)
     score = models.PositiveIntegerField(default=0)
-    time_taken = models.IntegerField(default=0)  # in minutes
+    time_taken = models.DurationField()
     submission_time = models.DateTimeField()
 
     class Meta:
@@ -98,12 +104,12 @@ class Result(models.Model):
         return f"User: {self.user.username} - Quiz: {self.quiz.title} - Date: {self.submission_time.isoformat()}"
 
 
-class UserAnswer(models.Model):
+class SubmittedAnswer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     quiz_result = models.ForeignKey(Result, on_delete=models.CASCADE, related_name='answers')
     selected_answers = models.ManyToManyField(Answer, related_name='selected_answers', blank=True)
     open_ended_answer = models.TextField(blank=True, null=True)
-    reviewed = models.BooleanField(default=False)
+
 
 # class QuestionFeedback(models.Model):
 #     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
