@@ -12,8 +12,8 @@ from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsExaminer
 from .models import Question, Favorite, Quiz, Result, SubmittedAnswer
-from .serializers import QuestionSerializer, QuizCreateSerializer, QuizDetailSerializer, \
-    ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer
+from .serializers import QuestionSerializer, QuizDetailSerializer, \
+    ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer, QuizCreateSerializer
 
 
 class QuestionCreateView(APIView):
@@ -39,7 +39,7 @@ class QuestionCreateView(APIView):
         - An example request structure is provided in the OpenAPI specification.
         - Upon successful creation, the question data is returned in the response.
     """
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         request=QuestionSerializer,
@@ -73,7 +73,7 @@ class QuestionCreateView(APIView):
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuestionSelectView(APIView):
@@ -96,7 +96,7 @@ class QuestionSelectView(APIView):
     Note:
         -This view assumes that the user is authenticated and has the required permissions.
     """
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         parameters=[
@@ -165,16 +165,15 @@ class QuestionFavoriteView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     def post(self, request, pk):
-        try:
-            question = Question.objects.get(pk=pk)
-        except Question.DoesNotExist:
+        question = Question.objects.filter(pk=pk)
+        if not question:
             raise Http404('Question not found')
 
         user = request.user
-        favorite, created = Favorite.objects.get_or_create(user=user, question=question)
+        favorite, created = Favorite.objects.get_or_create(user=user, question=question[0])
 
         if not created:
             favorite.delete()  # Unfavorite if already marked as favorite
@@ -186,33 +185,33 @@ class QuestionFavoriteView(APIView):
 class QuizCreateView(generics.CreateAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizCreateSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuizListView(generics.ListAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, quiz_unique_link):
-        try:
-            quiz = Quiz.objects.get(unique_link=quiz_unique_link)
-            serializer = self.serializer_class(quiz)
-            return Response(serializer.data)
-        except Quiz.DoesNotExist:
+        quiz = Quiz.objects.filter(unique_link=quiz_unique_link)
+        if not quiz:
             raise Http404('Quiz not found')
+
+        serializer = self.serializer_class(quiz[0])
+        return Response(serializer.data)
 
 
 class QuizUpdateDeleteView(generics.UpdateAPIView,
                            generics.mixins.DestroyModelMixin):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
@@ -304,15 +303,16 @@ class UserResultsWithAnswersView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, user_id, *args, **kwargs):
-        try:
-            user = CustomUser.objects.get(id=user_id)
-            results = Result.objects.filter(user=user)
-            serializer = ResultWithAnswersSerializer(results, many=True)
-        except Quiz.DoesNotExist:
+        user = CustomUser.objects.filter(id=user_id)
+        if not user:
             raise Http404('User not found')
+        results = Result.objects.filter(user=user[0])
+        if not results:
+            raise Http404('Results not found')
+        serializer = ResultWithAnswersSerializer(results, many=True)
         return Response(serializer.data)
 
 
@@ -333,18 +333,18 @@ class SendQuizEmailView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
-    permission_classes = [IsAuthenticated, IsExaminer]
+    # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
         serializer = QuizEmailSendSerializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-            quiz_id = serializer.validated_data['quiz_id']
-            quiz = Quiz.objects.get(pk=quiz_id)
-            recipient_emails = serializer.validated_data['recipient_emails']
-
-            send_quiz_link_to_students.delay(recipient_emails, quiz.unique_link)
-        except Quiz.DoesNotExist:
+        serializer.is_valid(raise_exception=True)
+        quiz_id = serializer.validated_data['quiz_id']
+        quiz = Quiz.objects.filter(pk=quiz_id)
+        if not quiz:
             raise Http404('Quiz not found')
+        recipient_emails = serializer.validated_data['recipient_emails']
+
+        send_quiz_link_to_students.delay(recipient_emails, quiz[0].unique_link)
+
         return Response({'message': 'Emails sent successfully.'})

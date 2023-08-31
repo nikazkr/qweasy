@@ -31,6 +31,7 @@ services:
     depends_on:
       - db
       - redis
+      - celery
 #    entrypoint: ''
   celery:
     build: .
@@ -41,7 +42,6 @@ services:
     env_file:
       - .env
     depends_on:
-      - web_api
       - redis
       - db
 volumes:

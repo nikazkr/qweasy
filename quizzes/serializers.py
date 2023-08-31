@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer
@@ -7,7 +8,7 @@ from users.models import CustomUser
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
-        fields = '__all__'
+        fields = ('id', 'text', 'image')
 
 
 class QuestionSerializer(serializers.ModelSerializer):
@@ -15,7 +16,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = '__all__'
+        fields = ('id', 'category', 'text', 'image', 'answer_type', 'difficulty', 'answers')
 
     def create(self, validated_data):
         answers_data = validated_data.pop('answers')
@@ -53,30 +54,37 @@ class QuizCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Quiz
-        fields = ('title', 'category', 'questions', 'time_limit', 'scores')
+        fields = ('id', 'title', 'category', 'questions', 'time_limit', 'scores')
 
     def create(self, validated_data):
         scores_data = validated_data.pop('scores')
-        questions_data = validated_data.pop('questions')
+        question_ids = validated_data.pop('questions', [])
 
-        quiz = Quiz.objects.create(**validated_data)
+        with transaction.atomic():
+            quiz = Quiz.objects.create(**validated_data)
+            quiz.questions.set(question_ids)
 
-        for score_data in scores_data:
-            question_id = score_data['question'].id
-            score_value = score_data['score']
-            QuestionScore.objects.create(quiz=quiz, question_id=question_id, score=score_value)
+            scores_objects = []
 
-        quiz.questions.set(questions_data)
+            for score_data in scores_data:
+                question_id = score_data['question'].id8
+                score_value = score_data['score']
+                scores = QuestionScore(quiz=quiz, question_id=question_id, score=score_value)
+
+                scores_objects.append(scores)
+
+            QuestionScore.objects.bulk_create(scores_objects)
 
         return quiz
 
 
 class QuizDetailSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True, read_only=True)
+    questions = QuestionSerializer(many=True)
+    scores = QuestionScoreSerializer(many=True, write_only=True)
 
     class Meta:
         model = Quiz
-        fields = ('title', 'category', 'questions', 'time_limit', 'unique_link')
+        fields = ('id', 'title', 'category', 'questions', 'time_limit', 'scores')
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -87,8 +95,8 @@ class QuizDetailSerializer(serializers.ModelSerializer):
 
         for question_data in representation['questions']:
             question_id = question_data['id']
-            related_scores = [score for score in score_data if score['question'] == question_id]
-            question_data['scores'] = related_scores
+            related_score = [score for score in score_data if score['question'] == question_id][0].get('score')
+            question_data['score'] = related_score
 
         return representation
 
