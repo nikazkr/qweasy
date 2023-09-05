@@ -11,9 +11,11 @@ from rest_framework.views import APIView
 from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsExaminer
-from .models import Question, Favorite, Quiz, Result, SubmittedAnswer
+from utils.score import calculate_score
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, QuestionScore, Answer, OpenEndedAnswer
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
-    ResultSubmitSerializer, ResultWithAnswersSerializer, QuizEmailSendSerializer, QuizCreateSerializer
+    ResultSubmitSerializer, QuizEmailSendSerializer, QuizCreateSerializer, \
+    UserResultListSerializer, UserResultDetailSerializer, OpenEndedQuestionScoreSerializer
 
 
 class QuestionCreateView(APIView):
@@ -39,6 +41,7 @@ class QuestionCreateView(APIView):
         - An example request structure is provided in the OpenAPI specification.
         - Upon successful creation, the question data is returned in the response.
     """
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
@@ -96,6 +99,7 @@ class QuestionSelectView(APIView):
     Note:
         -This view assumes that the user is authenticated and has the required permissions.
     """
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
@@ -165,6 +169,7 @@ class QuestionFavoriteView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     def post(self, request, pk):
@@ -196,6 +201,7 @@ class QuizListView(generics.ListAPIView):
 
 class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, quiz_unique_link):
@@ -211,6 +217,7 @@ class QuizUpdateDeleteView(generics.UpdateAPIView,
                            generics.mixins.DestroyModelMixin):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     def delete(self, request, *args, **kwargs):
@@ -240,29 +247,35 @@ class ResultSubmitView(APIView):
         - For multiple-choice questions (answer type 1), selected answer choices are associated with
           the submitted answers.
     """
+    serializer_class = ResultSubmitSerializer
+
     # permission_classes = [IsAuthenticated]
 
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
-        serializer = ResultSubmitSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data['user']
         quiz = serializer.validated_data['quiz']
         answers = serializer.validated_data['answers']
         time_taken = serializer.validated_data['time_taken']
-        score = serializer.validated_data['score']
+        feedback = serializer.validated_data['feedback']
+
+        score = calculate_score(quiz, answers)
 
         with transaction.atomic():
             result = Result.objects.create(
                 user=user,
                 quiz=quiz,
-                score=score,
+                score=score.get('total_score'),
                 time_taken=time_taken,
+                feedback=feedback,
                 submission_time=timezone.now()
             )
 
             user_answer_objects = []
+            open_ended_answers = []
 
             for answer_data in answers:
                 question = answer_data['question']
@@ -270,50 +283,43 @@ class ResultSubmitView(APIView):
 
                 user_answer = SubmittedAnswer(
                     question=question,
-                    open_ended_answer=open_ended_answer,
                     quiz_result=result
                 )
-
                 user_answer_objects.append(user_answer)
 
+                open_ended = OpenEndedAnswer(
+                    answer_text=open_ended_answer,
+                    submitted_answer=user_answer
+                )
+                open_ended_answers.append(open_ended)
+
             user_answers = SubmittedAnswer.objects.bulk_create(user_answer_objects)
+            OpenEndedAnswer.objects.bulk_create(open_ended_answers)
 
             for user_answer, answer_data in zip(user_answers, answers):
                 answer_type = answer_data['answer_type']
                 if answer_type != 2 and answer_data['selected_answers']:
                     user_answer.selected_answers.add(*answer_data['selected_answers'])
 
-        return Response({"message": "User answers submitted successfully."}, status=status.HTTP_200_OK)
+            user.total_time_spent += time_taken
+            user.total_tests_taken += 1
 
+            if score.get('total_max_score') > 0:
+                percentage = score.get('total_score') / score.get('total_max_score') * 100
+            else:
+                percentage = 100
 
-class UserResultsWithAnswersView(APIView):
-    """
-    API view for retrieving user quiz results with answers.
+            weight = 1 / user.total_tests_taken
+            user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
+                    weight * percentage)
+            user.save()
 
-    Args:
-        user_id (int): The ID of the user whose results are being retrieved.
-
-    Returns:
-        Response: Returns a response containing the serialized quiz results along with detailed answer information.
-
-    Raises:
-        Http404: If the user with the given ID is not found or does not exist.
-
-    Permissions:
-        - User must be authenticated.
-        - User must have examiner privileges.
-    """
-    # permission_classes = [IsAuthenticated, IsExaminer]
-
-    def get(self, request, user_id, *args, **kwargs):
-        user = CustomUser.objects.filter(id=user_id)
-        if not user:
-            raise Http404('User not found')
-        results = Result.objects.filter(user=user[0])
-        if not results:
-            raise Http404('Results not found')
-        serializer = ResultWithAnswersSerializer(results, many=True)
-        return Response(serializer.data)
+        return Response({
+            'message': 'User answers submitted successfully.',
+            'score': score.get('total_score'),
+            'max_score': score.get('total_max_score'),
+            'percentage': round(percentage, 2)
+        }, status=status.HTTP_200_OK)
 
 
 class SendQuizEmailView(APIView):
@@ -333,11 +339,13 @@ class SendQuizEmailView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
+    serializer_class = QuizEmailSendSerializer
+
     # permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
-        serializer = QuizEmailSendSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         quiz_id = serializer.validated_data['quiz_id']
         quiz = Quiz.objects.filter(pk=quiz_id)
@@ -348,3 +356,63 @@ class SendQuizEmailView(APIView):
         send_quiz_link_to_students.delay(recipient_emails, quiz[0].unique_link)
 
         return Response({'message': 'Emails sent successfully.'})
+
+
+class UserResultListView(generics.ListAPIView):
+    serializer_class = UserResultListSerializer
+
+    def get_queryset(self):
+        user_id = self.kwargs['user_id']
+        return Result.objects.filter(user_id=user_id)
+
+
+class UserResultDetailView(generics.RetrieveAPIView):
+    queryset = Result.objects.all()
+    serializer_class = UserResultDetailSerializer
+    lookup_field = 'id'
+
+
+class OpenEndedQuestionScoreView(APIView):
+    @extend_schema(request=OpenEndedQuestionScoreSerializer)
+    def post(self, request, *args, **kwargs):
+        serializer = OpenEndedQuestionScoreSerializer(data=request.data)
+        if serializer.is_valid():
+            open_ended_answer_id = serializer.validated_data['open_ended_answer_id']
+            score = serializer.validated_data['score']
+
+            try:
+                open_ended_answer = OpenEndedAnswer.objects.filter(id=open_ended_answer_id).first()
+                if not open_ended_answer:
+                    raise Http404('Answer not found')
+                result = open_ended_answer.submitted_answer.quiz_result
+
+                if open_ended_answer.score:
+                    result.score -= open_ended_answer.score
+                result.score += score
+                open_ended_answer.score = score
+
+                open_ended_answer.save()
+                result.save()
+
+                # question = open_ended_answer.submitted_answer.question
+                # quiz = result.quiz
+                # max_score = QuestionScore.objects.filter(quiz=quiz, question=question).first().score
+
+                # if max_score:
+                #     # Calculate percentage based on max_score
+                #     percentage = (score / max_score) * 100
+                # else:
+                #     percentage = 0
+
+                # user = result.user
+                # weight = 1 / user.total_tests_taken
+                # user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
+                #         weight * percentage)
+                # user.save()
+
+                return Response({'message': 'Score updated successfully'}, status=status.HTTP_200_OK)
+            except OpenEndedAnswer.DoesNotExist:
+                return Response({'error': 'Open-ended answer not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

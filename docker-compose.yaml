@@ -19,11 +19,8 @@ services:
   web_api:
     build: .
     restart: always
-    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
-    expose:
-      - "8000"
     ports:
       - "8000:8000"
     env_file:
@@ -31,8 +28,6 @@ services:
     depends_on:
       - db
       - redis
-      - celery
-#    entrypoint: ''
   celery:
     build: .
     entrypoint: ''
@@ -44,5 +39,14 @@ services:
     depends_on:
       - redis
       - db
+  nginx:
+    image: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./media:/media
+    depends_on:
+      - web_api
 volumes:
   data:

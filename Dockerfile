@@ -20,4 +20,4 @@ COPY . /app
 #EXPOSE 8000
 
 # Run the Django development server
-ENTRYPOINT ["sh","scripts/docker-entrypoint-dev.sh"]
+ENTRYPOINT ["sh","scripts/docker-entrypoint.sh"]

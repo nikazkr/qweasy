@@ -82,6 +82,9 @@ class Quiz(models.Model):
 
 
 class QuestionScore(models.Model):
+    """
+        Model for storing scores of each question for specific quiz.
+    """
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     score = models.PositiveIntegerField(default=0)
@@ -91,10 +94,14 @@ class QuestionScore(models.Model):
 
 
 class Result(models.Model):
+    """
+        Model for storing submitted results along with score, time taken and feedback.
+    """
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.PROTECT)
-    score = models.PositiveIntegerField(default=0)
+    score = models.FloatField(default=0)
     time_taken = models.DurationField()
+    feedback = models.TextField(default='')
     submission_time = models.DateTimeField()
 
     class Meta:
@@ -105,26 +112,21 @@ class Result(models.Model):
 
 
 class SubmittedAnswer(models.Model):
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    """
+        Model for storing each questions answer for submitted quiz result.
+    """
     quiz_result = models.ForeignKey(Result, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
     selected_answers = models.ManyToManyField(Answer, related_name='selected_answers', blank=True)
-    open_ended_answer = models.TextField(blank=True, null=True)
 
 
-# class QuestionFeedback(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     question = models.ForeignKey(Question, on_delete=models.CASCADE)
-#     like = models.BooleanField()
-#
-#     def __str__(self):
-#         return f"{self.user.first_name} - Question: {self.question.text} - Like: {self.like}"
+class OpenEndedAnswer(models.Model):
+    """
+        Model for storing open-ended answers and their scores for quiz.
+    """
+    submitted_answer = models.OneToOneField(SubmittedAnswer, on_delete=models.CASCADE, related_name='open_ended_answer')
+    answer_text = models.TextField(blank=True, null=True)
+    score = models.PositiveIntegerField(default=0)
 
-
-# class QuizFeedback(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
-#     rating = models.PositiveIntegerField(choices=[(i, i) for i in range(1, 6)])
-#     comment = models.TextField(blank=True)
-#
-#     def __str__(self):
-#         return f"{self.user.first_name} - Quiz: {self.quiz.name} - Rating: {self.rating}"
+    def __str__(self):
+        return self.answer_text

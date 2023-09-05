@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer
+from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer, OpenEndedAnswer
 from users.models import CustomUser
 
 
@@ -113,35 +113,94 @@ class ResultSubmitSerializer(serializers.Serializer):
     quiz = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
     answers = serializers.ListSerializer(child=ResultSingleSerializer())
     time_taken = serializers.DurationField(required=True)
-    score = serializers.IntegerField(required=True)
+    feedback = serializers.CharField()
 
     def validate(self, data):
         for answer_data in data['answers']:
             answer_type = answer_data['answer_type']
 
-            if answer_type == 2 and not answer_data.get('open_ended_answer'):
-                raise serializers.ValidationError("Open-ended answer is required for this question type.")
-            elif answer_type in [0, 1] and not answer_data.get('selected_answers'):
-                raise serializers.ValidationError("Selected answers are required for this question type.")
+            if answer_type == 2 and (not answer_data.get('open_ended_answer') or answer_data.get('selected_answers')):
+                raise serializers.ValidationError("Only open-ended answer is needed for this question type.")
+            elif answer_type in [0, 1] and (
+                    not answer_data.get('selected_answers') or answer_data.get('open_ended_answer')):
+                raise serializers.ValidationError("Only selected answers are needed for this question type.")
 
         return data
 
 
-class SubmittedAnswerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SubmittedAnswer
-        fields = '__all__'
-
-
-class ResultWithAnswersSerializer(serializers.ModelSerializer):
-    user_answers = SubmittedAnswerSerializer(source='answers', many=True)
-
-    class Meta:
-        model = Result
-        fields = '__all__'
-        depth = 1
+# class SubmittedAnswerSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = SubmittedAnswer
+#         fields = '__all__'
+#
+#
+# class ResultWithAnswersSerializer(serializers.ModelSerializer):
+#     questions = SubmittedAnswerSerializer(source='answers', many=True)
+#
+#     class Meta:
+#         model = Result
+#         fields = ('id', 'score', 'questions')
+#         depth = 1
 
 
 class QuizEmailSendSerializer(serializers.Serializer):
     quiz_id = serializers.IntegerField()
     recipient_emails = serializers.ListField(child=serializers.EmailField())
+
+
+class UserResultListSerializer(serializers.ModelSerializer):
+    quiz_id = serializers.SerializerMethodField()
+    quiz_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Result
+        fields = ('id', 'quiz_id', 'quiz_name', 'score', 'submission_time')
+
+    def get_quiz_id(self, obj):
+        return obj.quiz.id
+
+    def get_quiz_name(self, obj):
+        return obj.quiz.title
+
+
+# class AnswerSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Answer
+#         fields = ('id', 'text', 'is_correct')
+
+
+# class AnswerSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Answer
+#         fields = ('id', 'text', 'image')
+
+class OpenEndedAnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OpenEndedAnswer
+        fields = ('id', 'answer_text', 'score')
+
+
+class SubmittedAnswerSerializer(serializers.ModelSerializer):
+    selected_answers = AnswerSerializer(many=True)
+    open_ended_answer = OpenEndedAnswerSerializer()
+
+    class Meta:
+        model = SubmittedAnswer
+        fields = ('question', 'selected_answers', 'open_ended_answer')
+
+    def get_selected_answers(self, obj):
+        return obj.selected_answers.all()
+
+
+class UserResultDetailSerializer(serializers.ModelSerializer):
+    answers = SubmittedAnswerSerializer(many=True)
+
+    class Meta:
+        model = Result
+        fields = '__all__'
+
+
+class OpenEndedQuestionScoreSerializer(serializers.Serializer):
+    open_ended_answer_id = serializers.IntegerField()
+    score = serializers.IntegerField()
+

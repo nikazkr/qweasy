@@ -60,18 +60,6 @@ Qweasy utilizes a powerful stack of technologies to ensure a robust and streamli
 
 - **Celery with Redis as Broker:** To handle asynchronous tasks efficiently, Qweasy utilizes Celery with Redis as the message broker. This ensures tasks like email notifications or data processing can be executed in the background without affecting the user experience.
 
-### Caching and Performance Optimization
-
-- **Redis as Cache:** Redis is employed as a caching mechanism to enhance application performance. Cached data can be quickly retrieved, reducing the load on the database and improving response times.
-
-### Cloud Integration
-
-Qweasy benefits from Google Cloud's services to elevate its capabilities and reliability:
-
-- **Google Cloud Platform (GCP) Deployment:** The application is deployed on GCP, capitalizing on its scalable infrastructure and dependable cloud environment. This integration ensures that Qweasy delivers a seamless user experience with heightened performance, availability, and security.
-
-This comprehensive technology stack ensures that Qweasy is equipped to provide users with a seamless, secure, and efficient platform for their needs.
-
 
 ## Getting Started
 
