@@ -7,7 +7,7 @@ from core import settings
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('users/', include('users.urls')),
+    path('users/', include('users.urls', namespace='users')),
     path('', include('quizzes.urls')),
 
     path('schema/', SpectacularAPIView.as_view(), name='schema'),

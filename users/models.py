@@ -1,39 +1,66 @@
+import os
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.template.defaultfilters import slugify
+from django.utils.translation import gettext_lazy as _
+
+from .managers import CustomUserManager
 
 
 class CustomUser(AbstractUser):
-    """
-        Custom user model representing users of the application.
-    """
+    # Custom choices for gender, role, and level
+    GENDER_CHOICES = (
+        ("male", "Male"),
+        ("female", "Female"),
+        ("other", "Other"),
+    )
 
-    class Role(models.TextChoices):
-        EXAMINER = 'examiner', 'Examiner'
-        NOOB = 'noob', 'Noob'
+    ROLE_CHOICES = (
+        ("examiner", "Examiner"),
+        ("noob", "Noob"),
+    )
 
-    class Level(models.TextChoices):
-        JUNIOR = 'junior', 'Junior'
-        MIDDLE = 'middle', 'Middle'
-        SENIOR = 'senior', 'Senior'
+    LEVEL_CHOICES = (
+        ("junior", "Junior"),
+        ("middle", "Middle"),
+        ("senior", "Senior"),
+    )
 
-    class Gender(models.TextChoices):
-        MALE = 'male', 'Male'
-        FEMALE = 'female', 'Female'
-        OTHER = 'other', 'Other'
+    # username = None
+    email = models.EmailField(_("email address"), unique=True)
+    gender = models.CharField(_("gender"), max_length=10, choices=GENDER_CHOICES)
+    age = models.PositiveIntegerField(_("age"), default=0)
+    role = models.CharField(_("role"), max_length=10, choices=ROLE_CHOICES)
+    level = models.CharField(_("level"), max_length=10, choices=LEVEL_CHOICES)
+    total_tests_taken = models.PositiveIntegerField(_("total tests taken"), default=0)
+    total_time_spent = models.DurationField(_("total time spent"), default=timedelta(seconds=0))
+    overall_percentage = models.DecimalField(_("overall percentage"), max_digits=5, decimal_places=2, default=100)
 
-    @staticmethod
-    def default_duration():
-        return timedelta(seconds=0)
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username"]
 
-    gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
-    age = models.PositiveIntegerField(null=True, blank=True)
-    role = models.CharField(max_length=10, choices=Role.choices)
-    level = models.CharField(max_length=10, choices=Level.choices, null=True, blank=True)
-    total_tests_taken = models.PositiveIntegerField(default=0)
-    total_time_spent = models.DurationField(default=default_duration())
-    overall_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=100.00)
+    objects = CustomUserManager()
 
     def __str__(self):
-        return f"{self.role} - ( {self.email} ) {self.first_name} {self.last_name} - {self.username}"
+        return self.email
+
+
+def get_image_filename(instance, filename):
+    slug = slugify(filename)
+    return f"products/{slug}"
+
+
+class Profile(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    avatar = models.ImageField(upload_to=get_image_filename, blank=True)
+    bio = models.CharField(max_length=200, blank=True)
+
+    def __str__(self):
+        return self.user.email
+
+    @property
+    def filename(self):
+        return os.path.basename(self.image.name)

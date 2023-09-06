@@ -4,15 +4,12 @@ from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
-from utils.permissions import IsExaminer
 from utils.score import calculate_score
-from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, QuestionScore, Answer, OpenEndedAnswer
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, QuizEmailSendSerializer, QuizCreateSerializer, \
     UserResultListSerializer, UserResultDetailSerializer, OpenEndedQuestionScoreSerializer
@@ -125,7 +122,9 @@ class QuestionSelectView(APIView):
         favorites = request.query_params.get('favorited_only') == 'true'  # Convert string to boolean
 
         user = request.user
-
+        # TODO implement this logic in def get_queryset() ...
+        # TODO improvement: question search
+        # TODO examiner user approve status
         questions = Question.objects.all()
 
         if favorites:
@@ -287,6 +286,7 @@ class ResultSubmitView(APIView):
                 )
                 user_answer_objects.append(user_answer)
 
+                # TODO: normal answers are also saved in open ended answer table
                 open_ended = OpenEndedAnswer(
                     answer_text=open_ended_answer,
                     submitted_answer=user_answer
@@ -391,8 +391,8 @@ class OpenEndedQuestionScoreView(APIView):
                 result.score += score
                 open_ended_answer.score = score
 
-                open_ended_answer.save()
-                result.save()
+                # open_ended_answer.save()
+                # result.save()
 
                 # question = open_ended_answer.submitted_answer.question
                 # quiz = result.quiz
@@ -404,15 +404,17 @@ class OpenEndedQuestionScoreView(APIView):
                 # else:
                 #     percentage = 0
 
-                # user = result.user
+                user = result.user
+                max_score = QuestionScore.objects.filter(question__submittedanswer__open_ended_answer=open_ended_answer,
+                                                         quiz=result.quiz).values('score').first().get('score')
                 # weight = 1 / user.total_tests_taken
                 # user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
                 #         weight * percentage)
                 # user.save()
+                (user.overall_percentage * user.total_tests_taken - old_score/max_score * 100 + score/max_score * 100)/user.total_tests_taken
 
                 return Response({'message': 'Score updated successfully'}, status=status.HTTP_200_OK)
             except OpenEndedAnswer.DoesNotExist:
                 return Response({'error': 'Open-ended answer not found'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-

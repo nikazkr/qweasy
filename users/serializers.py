@@ -1,22 +1,63 @@
-from dj_rest_auth.registration.serializers import RegisterSerializer
+from django.contrib.auth import authenticate
 from rest_framework import serializers
-from .models import CustomUser
-from rest_framework.authtoken.models import Token
+
+from .models import CustomUser, Profile
 
 
-class CustomRegisterSerializer(RegisterSerializer):
-    role = serializers.ChoiceField(choices=CustomUser.Role)
-    level = serializers.ChoiceField(choices=CustomUser.Level, required=False)
-    gender = serializers.ChoiceField(choices=CustomUser.Gender, required=False)
-    age = serializers.IntegerField(required=False)
+class CustomUserSerializer(serializers.ModelSerializer):
+    """
+    Serializer class to serialize CustomUser model.
+    """
 
-    def custom_signup(self, request, user):
-        user.role = self.validated_data.get('role')
-        user.level = self.validated_data.get('level')
-        user.gender = self.validated_data.get('gender')
-        user.age = self.validated_data.get('age')
-        user.save()
+    class Meta:
+        model = CustomUser
+        fields = ("id", "username", "email")
 
-        # Generate a token for the registered user
-        token, _ = Token.objects.get_or_create(user=user)
-        return token
+
+class UserRegisterationSerializer(serializers.ModelSerializer):
+    """
+    Serializer class to serialize registration requests and create a new user.
+    """
+
+    class Meta:
+        model = CustomUser
+        fields = ("id", "username", "email", "password")
+        extra_kwargs = {"password": {"write_only": True}}
+
+    def create(self, validated_data):
+        return CustomUser.objects.create_user(**validated_data)
+
+
+class UserLoginSerializer(serializers.Serializer):
+    """
+    Serializer class to authenticate users with email and password.
+    """
+
+    email = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(**data)
+        if user and user.is_active:
+            return user
+        raise serializers.ValidationError("Incorrect Credentials")
+
+
+class ProfileSerializer(CustomUserSerializer):
+    """
+    Serializer class to serialize the user Profile model
+    """
+
+    class Meta:
+        model = Profile
+        fields = ("bio",)
+
+
+class ProfileAvatarSerializer(serializers.ModelSerializer):
+    """
+    Serializer class to serialize the avatar
+    """
+
+    class Meta:
+        model = Profile
+        fields = ("avatar",)
