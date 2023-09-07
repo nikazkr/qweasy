@@ -22,11 +22,9 @@ AUTH_USER_MODEL = 'users.CustomUser'
 
 THIRD_PARTY_APPS = [
     'rest_framework',
-    # 'rest_framework.authtoken',
+    'rest_framework.authtoken',
     'rest_framework_simplejwt',
     "rest_framework_simplejwt.token_blacklist",
-    # 'dj_rest_auth',
-    # 'dj_rest_auth.registration',
 
     'django.contrib.sites',
     'allauth',
@@ -163,20 +161,20 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_HTTPONLY': False,
-    'OLD_PASSWORD_FIELD_ENABLED': True,
-    'LOGOUT_ON_PASSWORD_CHANGE': True,
-    'JWT_AUTH_COOKIE': 'my-app-auth',
-    'JWT_AUTH_REFRESH_COOKIE': 'my-refresh-token',
-    'REGISTER_SERIALIZER': 'users.serializers.CustomRegisterSerializer',
-}
-
-ACCOUNT_USERNAME_REQUIRED = True
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
-ACCOUNT_EMAIL_VERIFICATION = 'none'
+# REST_AUTH = {
+#     'USE_JWT': True,
+#     'JWT_AUTH_HTTPONLY': False,
+#     'OLD_PASSWORD_FIELD_ENABLED': True,
+#     'LOGOUT_ON_PASSWORD_CHANGE': True,
+#     'JWT_AUTH_COOKIE': 'my-app-auth',
+#     'JWT_AUTH_REFRESH_COOKIE': 'my-refresh-token',
+#     'REGISTER_SERIALIZER': 'users.serializers.CustomRegisterSerializer',
+# }
+#
+# ACCOUNT_USERNAME_REQUIRED = True
+# ACCOUNT_EMAIL_REQUIRED = True
+# ACCOUNT_AUTHENTICATION_METHOD = 'username'
+# ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {

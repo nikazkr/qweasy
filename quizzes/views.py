@@ -122,9 +122,6 @@ class QuestionSelectView(APIView):
         favorites = request.query_params.get('favorited_only') == 'true'  # Convert string to boolean
 
         user = request.user
-        # TODO implement this logic in def get_queryset() ...
-        # TODO improvement: question search
-        # TODO examiner user approve status
         questions = Question.objects.all()
 
         if favorites:
@@ -286,12 +283,12 @@ class ResultSubmitView(APIView):
                 )
                 user_answer_objects.append(user_answer)
 
-                # TODO: normal answers are also saved in open ended answer table
-                open_ended = OpenEndedAnswer(
-                    answer_text=open_ended_answer,
-                    submitted_answer=user_answer
-                )
-                open_ended_answers.append(open_ended)
+                if question.answer_type == 2:
+                    open_ended = OpenEndedAnswer(
+                        answer_text=open_ended_answer,
+                        submitted_answer=user_answer
+                    )
+                    open_ended_answers.append(open_ended)
 
             user_answers = SubmittedAnswer.objects.bulk_create(user_answer_objects)
             OpenEndedAnswer.objects.bulk_create(open_ended_answers)
@@ -391,8 +388,8 @@ class OpenEndedQuestionScoreView(APIView):
                 result.score += score
                 open_ended_answer.score = score
 
-                # open_ended_answer.save()
-                # result.save()
+                open_ended_answer.save()
+                result.save()
 
                 # question = open_ended_answer.submitted_answer.question
                 # quiz = result.quiz
@@ -403,15 +400,15 @@ class OpenEndedQuestionScoreView(APIView):
                 #     percentage = (score / max_score) * 100
                 # else:
                 #     percentage = 0
-
-                user = result.user
-                max_score = QuestionScore.objects.filter(question__submittedanswer__open_ended_answer=open_ended_answer,
-                                                         quiz=result.quiz).values('score').first().get('score')
+                #
+                # user = result.user
+                # max_score = QuestionScore.objects.filter(question__submittedanswer__open_ended_answer=open_ended_answer,
+                #                                          quiz=result.quiz).values('score').first().get('score')
                 # weight = 1 / user.total_tests_taken
                 # user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
                 #         weight * percentage)
                 # user.save()
-                (user.overall_percentage * user.total_tests_taken - old_score/max_score * 100 + score/max_score * 100)/user.total_tests_taken
+                # (user.overall_percentage * user.total_tests_taken - old_score/max_score * 100 + score/max_score * 100)/user.total_tests_taken
 
                 return Response({'message': 'Score updated successfully'}, status=status.HTTP_200_OK)
             except OpenEndedAnswer.DoesNotExist:

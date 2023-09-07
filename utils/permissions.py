@@ -6,7 +6,7 @@ class IsExaminer(permissions.BasePermission):
     Custom permission to only allow examiner to view and edit objects.
     """
     def has_permission(self, request, view):
-        return request.user.role == 'examiner'
+        return request.user.status == "accepted" and request.user.role == "examiner"
 
 
 class IsOwner(permissions.BasePermission):

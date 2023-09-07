@@ -12,6 +12,9 @@ __pycache__/
 # Keep the __init__.py file
 !*/migrations/__init__.py
 
+media/*
+identifier.sqlite
+
 # Distribution / packaging
 .Python
 build/

@@ -15,9 +15,7 @@ urlpatterns = [
     path('quiz/', QuizListView.as_view(), name='quiz-list'),
     path('quiz/send-email', SendQuizEmailView.as_view(), name='send-quiz-email'),
     path('quiz/submit', ResultSubmitView.as_view(), name='quiz-submit'),
-    path('score-open-ended/', OpenEndedQuestionScoreView.as_view(), name='score_open_ended'),
-
-    path('user-results/<int:user_id>/', UserResultListView.as_view(), name='user-results'),
-    path('user-result/<int:id>/', UserResultDetailView.as_view(), name='user-result-detail'),
-
+    path('quiz/score-open-ended/', OpenEndedQuestionScoreView.as_view(), name='score_open_ended'),
+    path('quiz/user-results/<int:user_id>/', UserResultListView.as_view(), name='user-results'),
+    path('quiz/user-result/<int:id>/', UserResultDetailView.as_view(), name='user-result-detail'),
 ]

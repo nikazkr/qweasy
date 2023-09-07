@@ -11,13 +11,6 @@ from .managers import CustomUserManager
 
 
 class CustomUser(AbstractUser):
-    # Custom choices for gender, role, and level
-    GENDER_CHOICES = (
-        ("male", "Male"),
-        ("female", "Female"),
-        ("other", "Other"),
-    )
-
     ROLE_CHOICES = (
         ("examiner", "Examiner"),
         ("noob", "Noob"),
@@ -29,11 +22,15 @@ class CustomUser(AbstractUser):
         ("senior", "Senior"),
     )
 
-    # username = None
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("accepted", "Accepted"),
+        ("declined", "Declined"),
+    )
+
     email = models.EmailField(_("email address"), unique=True)
-    gender = models.CharField(_("gender"), max_length=10, choices=GENDER_CHOICES)
-    age = models.PositiveIntegerField(_("age"), default=0)
-    role = models.CharField(_("role"), max_length=10, choices=ROLE_CHOICES)
+    role = models.CharField(_("role"), max_length=10, choices=ROLE_CHOICES, default="noob")
+    status = models.CharField(_("status"), max_length=10, choices=STATUS_CHOICES, default="pending")
     level = models.CharField(_("level"), max_length=10, choices=LEVEL_CHOICES)
     total_tests_taken = models.PositiveIntegerField(_("total tests taken"), default=0)
     total_time_spent = models.DurationField(_("total time spent"), default=timedelta(seconds=0))
@@ -50,13 +47,23 @@ class CustomUser(AbstractUser):
 
 def get_image_filename(instance, filename):
     slug = slugify(filename)
-    return f"products/{slug}"
+    return f"avatars/{slug}"
 
 
 class Profile(models.Model):
+    GENDER_CHOICES = (
+        ("male", "Male"),
+        ("female", "Female"),
+        ("other", "Other"),
+    )
+
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    first_name = models.CharField(_("first name"), max_length=150, blank=True)
+    last_name = models.CharField(_("last name"), max_length=150, blank=True)
     avatar = models.ImageField(upload_to=get_image_filename, blank=True)
-    bio = models.CharField(max_length=200, blank=True)
+    bio = models.TextField(blank=True)
+    birth_date = models.DateField(_("birth date"), null=True, blank=True)
+    gender = models.CharField(_("gender"), max_length=10, choices=GENDER_CHOICES, default='other')
 
     def __str__(self):
         return self.user.email

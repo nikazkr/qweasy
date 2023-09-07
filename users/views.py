@@ -2,15 +2,18 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from django.contrib.auth import get_user_model
-from rest_framework import status
-from rest_framework.generics import GenericAPIView, RetrieveUpdateAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import status, generics
+from rest_framework.generics import GenericAPIView, RetrieveUpdateAPIView, get_object_or_404
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from utils.permissions import IsExaminer
 from utils.token import create_custom_token
 from . import serializers
-from .models import Profile
+from .models import Profile, CustomUser
+from .serializers import CustomUserSerializer
 
 User = get_user_model()
 
@@ -102,3 +105,41 @@ class CustomGoogleLogin(SocialLoginView):
             token = create_custom_token(user)
             response.data["tokens"] = {"refresh": str(token), "access": str(token.access_token)}
         return response
+
+
+class AcceptStatusChangeView(APIView):
+    permission_classes = (IsAdminUser,)
+
+    def post(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        user.status = "accepted"
+        user.save()
+        return Response({"message": "Status change accepted"}, status=status.HTTP_200_OK)
+
+
+class DeclineStatusChangeView(APIView):
+    permission_classes = (IsAdminUser,)
+
+    def post(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        user.status = "declined"
+        user.save()
+        return Response({"message": "Status change declined"}, status=status.HTTP_200_OK)
+
+
+class ResendStatusChangeView(APIView):
+    permission_classes = (IsAuthenticated, IsExaminer)
+
+    def post(self, request):
+        if request.user.role != "examiner":
+            return Response({"message": "Only examiners can request status change"}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            request.user.status = "pending"
+            request.user.save()
+            return Response({"message": "Status change request resent"}, status=status.HTTP_200_OK)
+
+
+class UsersListView(generics.ListAPIView):
+    queryset = CustomUser.objects.all()
+    serializer_class = CustomUserSerializer
+    permission_classes = (IsAdminUser, IsExaminer)
