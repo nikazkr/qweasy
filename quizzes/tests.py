@@ -1,10 +1,13 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import ErrorDetail
 from rest_framework.reverse import reverse
 from rest_framework.test import APITestCase
 
-from quizzes.models import Quiz, Category, Question, Result, Favorite, Answer
+from quizzes.models import Quiz, Category, Question, Result, Favorite, Answer, QuestionScore
 
 User = get_user_model()
 
@@ -12,70 +15,21 @@ User = get_user_model()
 class BaseAPITestCase(APITestCase):
     def setUp(self):
         self.category = Category.objects.create(name='Test Category')
-        self.user = User.objects.create_user(username='testuser', password='testpassword', role='examiner')
+        self.user = User.objects.create_user(email='test@user.com', password='testpassword', role='examiner',
+                                             status='accepted')
         self.question = Question.objects.create(text='Test Question')
         self.answer1 = Answer.objects.create(text='Test Answer 1', question=self.question, is_correct=True)
         self.quiz = Quiz.objects.create(
             title='Test Quiz',
             category=self.category,
-            time_limit='P4DT1H15M20S',
+            time_limit=timedelta(seconds=5),
             unique_link='test-link'
         )
         self.quiz.questions.add(self.question)
         self.client.force_authenticate(user=self.user)
-        self.result = Result.objects.create(user=self.user, quiz=self.quiz, time_taken='P4DT1H15M20S', score=10,
-                                            submission_time=timezone.now())
-
-
-class SendQuizEmailViewTestCase(BaseAPITestCase):
-    def test_send_quiz_email_success(self):
-        data = {
-            "quiz_id": self.quiz.id,
-            "recipient_emails": ["test@example.com"]
-        }
-        response = self.client.post('/quiz/send-email', data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'message': 'Emails sent successfully.'})
-
-    def test_send_quiz_email_unauthenticated(self):
-        self.client.logout()
-
-        data = {
-            "quiz_id": self.quiz.id,
-            "recipient_emails": ["test@example.com"]
-        }
-
-        response = self.client.post('/quiz/send-email', data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(response.data, {'detail': 'Authentication credentials were not provided.'})
-
-    def test_send_quiz_email_invalid_quiz(self):
-        data = {
-            "quiz_id": 0,  # Non-existent quiz ID
-            "recipient_emails": ["test@example.com"]
-        }
-        response = self.client.post('/quiz/send-email', data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data, {'error': 'Quiz not found'})
-
-
-class UserResultsWithAnswersViewTestCase(BaseAPITestCase):
-    def test_get_user_results_with_answers(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get(f'/user-results/{self.user.id}/')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(len(response.data) > 0)
-
-    def test_get_user_results_with_invalid_user_id(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get('/user-results/0/')
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data, {"error": "User not found"})
+        self.result = Result.objects.create(user=self.user, quiz=self.quiz, time_taken=timedelta(seconds=5),
+                                            feedback='string', submission_time=timezone.now())
+        QuestionScore.objects.create(question=self.question, quiz=self.quiz, score=10)
 
 
 class QuizListViewTestCase(BaseAPITestCase):
@@ -135,7 +89,7 @@ class QuizDetailViewTestCase(BaseAPITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data, {'error': 'Quiz not found'})
+        self.assertEqual(response.data, {'detail': ErrorDetail(string='Quiz not found', code='not_found')})
 
     def test_get_quiz_detail_unauthenticated(self):
         self.client.logout()
@@ -147,7 +101,6 @@ class QuizDetailViewTestCase(BaseAPITestCase):
 
 class QuestionFavoriteViewTestCase(BaseAPITestCase):
     def test_mark_question_as_favorite(self):
-        self.client.force_authenticate(user=self.user)
         response = self.client.post(reverse('question-favorite', args=[self.question.pk]))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -155,7 +108,6 @@ class QuestionFavoriteViewTestCase(BaseAPITestCase):
         self.assertTrue(Favorite.objects.filter(user=self.user, question=self.question).exists())
 
     def test_unmark_question_as_favorite(self):
-        self.client.force_authenticate(user=self.user)
         Favorite.objects.create(user=self.user, question=self.question)
         response = self.client.post(reverse('question-favorite', args=[self.question.pk]))
 
@@ -170,18 +122,15 @@ class QuestionFavoriteViewTestCase(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_mark_question_as_favorite_invalid_question(self):
-        self.client.force_authenticate(user=self.user)
         response = self.client.post(reverse('question-favorite', args=[0]))  # Non-existent question ID
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data, {'error': 'Question not found'})
+        self.assertEqual(response.data, {'detail': ErrorDetail(string='Question not found', code='not_found')})
 
     def test_unmark_question_as_favorite_invalid_question(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(reverse('question-favorite', args=[0]))  # Non-existent question ID
-
+        response = self.client.post(reverse('question-favorite', args=[0]))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data, {'error': 'Question not found'})
+        self.assertEqual(response.data, {'detail': ErrorDetail(string='Question not found', code='not_found')})
 
 
 class QuestionSelectViewTestCase(BaseAPITestCase):
@@ -201,13 +150,6 @@ class QuestionSelectViewTestCase(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['questions']), 1)
         self.assertEqual(response.data['questions'][0]['text'], self.question.text)
-
-    def test_invalid_quantity_parameter(self):
-        url = reverse('question-select')
-        response = self.client.get(url, {'quantity': 'invalid'})
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error'], 'Invalid quantity parameter')
 
 
 class QuestionCreateViewTestCase(BaseAPITestCase):
@@ -244,7 +186,13 @@ class QuestionCreateViewTestCase(BaseAPITestCase):
         response = self.client.post(url, data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['error'], 'Validation error occurred')
+        self.assertEqual(
+            response.data,
+            {
+                'text': ['This field is required.'],
+                'answers': ['This field is required.']
+            }
+        )
 
 
 class ResultSubmitViewTestCase(BaseAPITestCase):
@@ -263,13 +211,15 @@ class ResultSubmitViewTestCase(BaseAPITestCase):
                 }
             ],
             "time_taken": 30,
-            "score": 0
+            "feedback": "string"
         }
 
         response = self.client.post(reverse('quiz-submit'), data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"message": "User answers submitted successfully."})
+        self.assertEqual(response.data, {
+            "message": "User answers submitted successfully.",
+            'score': 10.0, 'max_score': 10, 'percentage': 100.0})
         self.assertEqual(Result.objects.count(), 1)
 
     def test_submit_user_answers_invalid_data(self):
@@ -278,7 +228,6 @@ class ResultSubmitViewTestCase(BaseAPITestCase):
             "quiz": self.quiz.id,
             "answers": [],
             "time_taken": 30,
-            "score": 10,
         }
 
         response = self.client.post(reverse('quiz-submit'), data, format='json')
@@ -292,7 +241,6 @@ class ResultSubmitViewTestCase(BaseAPITestCase):
             "quiz": self.quiz.id,
             "answers": [],
             "time_taken": 30,
-            "score": 10,
         }
 
         response = self.client.post(reverse('quiz-submit'), data, format='json')

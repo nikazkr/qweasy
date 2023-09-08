@@ -1,15 +1,17 @@
 from django.db import transaction
-from django.http import Http404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
+from rest_framework.exceptions import NotFound
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from utils.mail import send_quiz_link_to_students
+from utils.permissions import IsExaminer
 from utils.score import calculate_score
-from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, QuizEmailSendSerializer, QuizCreateSerializer, \
     UserResultListSerializer, UserResultDetailSerializer, OpenEndedQuestionScoreSerializer
@@ -39,7 +41,7 @@ class QuestionCreateView(APIView):
         - Upon successful creation, the question data is returned in the response.
     """
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         request=QuestionSerializer,
@@ -73,7 +75,7 @@ class QuestionCreateView(APIView):
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuestionSelectView(APIView):
@@ -97,7 +99,7 @@ class QuestionSelectView(APIView):
         -This view assumes that the user is authenticated and has the required permissions.
     """
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(
         parameters=[
@@ -137,11 +139,9 @@ class QuestionSelectView(APIView):
 
         if quantity:
             quantity = int(quantity)
-            selected_questions = questions[:quantity]
-        else:
-            selected_questions = questions
+            questions = questions[:quantity]
 
-        question_serializer = QuestionSerializer(selected_questions, many=True)
+        question_serializer = QuestionSerializer(questions, many=True)
 
         return Response({'questions': question_serializer.data})
 
@@ -159,19 +159,19 @@ class QuestionFavoriteView(APIView):
             - If the question was successfully removed from favorites, returns a message indicating so.
 
     Raises:
-        Http404: If the question with the given ID is not found or does not exist.
+        NotFound: If the question with the given ID is not found or does not exist.
 
     Permissions:
         - User must be authenticated.
         - User must have examiner privileges.
     """
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def post(self, request, pk):
         question = Question.objects.filter(pk=pk)
         if not question:
-            raise Http404('Question not found')
+            raise NotFound('Question not found')
 
         user = request.user
         favorite, created = Favorite.objects.get_or_create(user=user, question=question[0])
@@ -186,24 +186,24 @@ class QuestionFavoriteView(APIView):
 class QuizCreateView(generics.CreateAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizCreateSerializer
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuizListView(generics.ListAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
 
 class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def get(self, request, quiz_unique_link):
         quiz = Quiz.objects.filter(unique_link=quiz_unique_link)
         if not quiz:
-            raise Http404('Quiz not found')
+            raise NotFound('Quiz not found')
 
         serializer = self.serializer_class(quiz[0])
         return Response(serializer.data)
@@ -214,7 +214,7 @@ class QuizUpdateDeleteView(generics.UpdateAPIView,
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
@@ -245,7 +245,7 @@ class ResultSubmitView(APIView):
     """
     serializer_class = ResultSubmitSerializer
 
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
@@ -330,7 +330,7 @@ class SendQuizEmailView(APIView):
         Response: A success message if emails are sent successfully.
 
     Raises:
-        Http404: If the quiz with the given ID is not found.
+        NotFound: If the quiz with the given ID is not found.
 
     Permissions:
         - User must be authenticated.
@@ -338,7 +338,7 @@ class SendQuizEmailView(APIView):
     """
     serializer_class = QuizEmailSendSerializer
 
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
@@ -347,7 +347,7 @@ class SendQuizEmailView(APIView):
         quiz_id = serializer.validated_data['quiz_id']
         quiz = Quiz.objects.filter(pk=quiz_id)
         if not quiz:
-            raise Http404('Quiz not found')
+            raise NotFound('Quiz not found')
         recipient_emails = serializer.validated_data['recipient_emails']
 
         send_quiz_link_to_students.delay(recipient_emails, quiz[0].unique_link)
@@ -380,7 +380,7 @@ class OpenEndedQuestionScoreView(APIView):
             try:
                 open_ended_answer = OpenEndedAnswer.objects.filter(id=open_ended_answer_id).first()
                 if not open_ended_answer:
-                    raise Http404('Answer not found')
+                    raise NotFound('Answer not found')
                 result = open_ended_answer.submitted_answer.quiz_result
 
                 if open_ended_answer.score:
@@ -395,18 +395,11 @@ class OpenEndedQuestionScoreView(APIView):
                 # quiz = result.quiz
                 # max_score = QuestionScore.objects.filter(quiz=quiz, question=question).first().score
 
-                # if max_score:
-                #     # Calculate percentage based on max_score
-                #     percentage = (score / max_score) * 100
-                # else:
-                #     percentage = 0
-                #
+
                 # user = result.user
                 # max_score = QuestionScore.objects.filter(question__submittedanswer__open_ended_answer=open_ended_answer,
                 #                                          quiz=result.quiz).values('score').first().get('score')
-                # weight = 1 / user.total_tests_taken
-                # user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
-                #         weight * percentage)
+
                 # user.save()
                 # (user.overall_percentage * user.total_tests_taken - old_score/max_score * 100 + score/max_score * 100)/user.total_tests_taken
 

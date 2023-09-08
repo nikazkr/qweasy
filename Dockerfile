@@ -16,8 +16,5 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 # Copy the project code to the working directory
 COPY . /app
 
-# Expose the Django development server port
-#EXPOSE 8000
-
 # Run the Django development server
 ENTRYPOINT ["sh","scripts/docker-entrypoint.sh"]

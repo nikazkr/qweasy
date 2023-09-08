@@ -203,4 +203,3 @@ class UserResultDetailSerializer(serializers.ModelSerializer):
 class OpenEndedQuestionScoreSerializer(serializers.Serializer):
     open_ended_answer_id = serializers.IntegerField()
     score = serializers.IntegerField()
-

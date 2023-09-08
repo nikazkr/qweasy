@@ -13,6 +13,7 @@ __pycache__/
 !*/migrations/__init__.py
 
 media/*
+staticfiles/*
 identifier.sqlite
 
 # Distribution / packaging
