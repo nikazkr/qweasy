@@ -31,7 +31,7 @@ class CustomUser(AbstractUser):
     email = models.EmailField(_("email address"), unique=True)
     role = models.CharField(_("role"), max_length=10, choices=ROLE_CHOICES, default="noob")
     status = models.CharField(_("status"), max_length=10, choices=STATUS_CHOICES, default="pending")
-    level = models.CharField(_("level"), max_length=10, choices=LEVEL_CHOICES)
+    level = models.CharField(_("level"), max_length=10, choices=LEVEL_CHOICES, null=True)
     total_tests_taken = models.PositiveIntegerField(_("total tests taken"), default=0)
     total_time_spent = models.DurationField(_("total time spent"), default=timedelta(seconds=0))
     overall_percentage = models.DecimalField(_("overall percentage"), max_digits=5, decimal_places=2, default=100)

@@ -62,3 +62,7 @@ class ProfileAvatarSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ("avatar",)
+
+
+class StatusChangeSerializer(serializers.Serializer):
+    action = serializers.BooleanField()

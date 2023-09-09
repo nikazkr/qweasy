@@ -67,7 +67,7 @@ class QuizCreateSerializer(serializers.ModelSerializer):
             scores_objects = []
 
             for score_data in scores_data:
-                question_id = score_data['question'].id8
+                question_id = score_data['question'].id
                 score_value = score_data['score']
                 scores = QuestionScore(quiz=quiz, question_id=question_id, score=score_value)
 
@@ -128,21 +128,6 @@ class ResultSubmitSerializer(serializers.Serializer):
         return data
 
 
-# class SubmittedAnswerSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = SubmittedAnswer
-#         fields = '__all__'
-#
-#
-# class ResultWithAnswersSerializer(serializers.ModelSerializer):
-#     questions = SubmittedAnswerSerializer(source='answers', many=True)
-#
-#     class Meta:
-#         model = Result
-#         fields = ('id', 'score', 'questions')
-#         depth = 1
-
-
 class QuizEmailSendSerializer(serializers.Serializer):
     quiz_id = serializers.IntegerField()
     recipient_emails = serializers.ListField(child=serializers.EmailField())
@@ -162,17 +147,6 @@ class UserResultListSerializer(serializers.ModelSerializer):
     def get_quiz_name(self, obj):
         return obj.quiz.title
 
-
-# class AnswerSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Answer
-#         fields = ('id', 'text', 'is_correct')
-
-
-# class AnswerSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Answer
-#         fields = ('id', 'text', 'image')
 
 class OpenEndedAnswerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -200,6 +174,19 @@ class UserResultDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class OpenEndedQuestionScoreSerializer(serializers.Serializer):
+class OpenEndedReviewSerializer(serializers.Serializer):
     open_ended_answer_id = serializers.IntegerField()
     score = serializers.IntegerField()
+
+    def validate(self, data):
+        # Get the maximum score for the associated question
+
+        open_ended = OpenEndedAnswer.objects.filter(id=data.get('open_ended_answer_id')).first()
+        quiz = open_ended.submitted_answer.quiz_result.quiz
+        max_score = QuestionScore.objects.filter(
+            question__submittedanswer__open_ended_answer=data.get('open_ended_answer_id'), quiz=quiz).first().score
+
+        if not (0 <= data.get('score') <= max_score):
+            raise serializers.ValidationError(f"Score must be between 0 and {max_score}.")
+
+        return data

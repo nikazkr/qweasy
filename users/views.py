@@ -13,12 +13,12 @@ from utils.permissions import IsExaminer
 from utils.token import create_custom_token
 from . import serializers
 from .models import Profile, CustomUser
-from .serializers import CustomUserSerializer
+from .serializers import CustomUserSerializer, StatusChangeSerializer
 
 User = get_user_model()
 
 
-class UserRegisterationAPIView(GenericAPIView):
+class UserRegistrationAPIView(GenericAPIView):
     """
     An endpoint for the client to create a new User.
     """
@@ -107,28 +107,33 @@ class CustomGoogleLogin(SocialLoginView):
         return response
 
 
-class AcceptStatusChangeView(APIView):
+class StatusChangeView(APIView):
+    serializer_class = StatusChangeSerializer
     permission_classes = (IsAdminUser,)
 
     def post(self, request, user_id):
         user = get_object_or_404(CustomUser, id=user_id)
-        user.status = "accepted"
-        user.save()
-        return Response({"message": "Status change accepted"}, status=status.HTTP_200_OK)
+        if user.status != "pending":
+            return Response({"message": "User status is not pending"}, status=status.HTTP_400_BAD_REQUEST)
 
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            accept = serializer.validated_data.get('accept')
+            if accept:
+                user.status = "accepted"
+                message = "Status change accepted"
+            else:
+                user.status = "declined"
+                message = "Status change declined"
 
-class DeclineStatusChangeView(APIView):
-    permission_classes = (IsAdminUser,)
+            user.save()
+            return Response({"message": message}, status=status.HTTP_200_OK)
 
-    def post(self, request, user_id):
-        user = get_object_or_404(CustomUser, id=user_id)
-        user.status = "declined"
-        user.save()
-        return Response({"message": "Status change declined"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ResendStatusChangeView(APIView):
-    permission_classes = (IsAuthenticated, IsExaminer)
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request):
         if request.user.role != "examiner":

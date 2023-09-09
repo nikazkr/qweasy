@@ -126,7 +126,7 @@ class OpenEndedAnswer(models.Model):
     """
     submitted_answer = models.OneToOneField(SubmittedAnswer, on_delete=models.CASCADE, related_name='open_ended_answer')
     answer_text = models.TextField(blank=True, null=True)
-    score = models.PositiveIntegerField(default=0)
+    score = models.PositiveIntegerField(null=True)
 
     def __str__(self):
         return self.answer_text

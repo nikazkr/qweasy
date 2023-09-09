@@ -4,17 +4,17 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
 from rest_framework.exceptions import NotFound
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsExaminer
 from utils.score import calculate_score
-from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, QuizEmailSendSerializer, QuizCreateSerializer, \
-    UserResultListSerializer, UserResultDetailSerializer, OpenEndedQuestionScoreSerializer
+    UserResultListSerializer, UserResultDetailSerializer, OpenEndedReviewSerializer
 
 
 class QuestionCreateView(APIView):
@@ -243,9 +243,10 @@ class ResultSubmitView(APIView):
         - For multiple-choice questions (answer type 1), selected answer choices are associated with
           the submitted answers.
     """
+
     serializer_class = ResultSubmitSerializer
 
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
@@ -298,17 +299,20 @@ class ResultSubmitView(APIView):
                 if answer_type != 2 and answer_data['selected_answers']:
                     user_answer.selected_answers.add(*answer_data['selected_answers'])
 
-            user.total_time_spent += time_taken
-            user.total_tests_taken += 1
-
             if score.get('total_max_score') > 0:
                 percentage = score.get('total_score') / score.get('total_max_score') * 100
             else:
                 percentage = 100
 
-            weight = 1 / user.total_tests_taken
-            user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
-                    weight * percentage)
+            user.overall_percentage = (float(user.overall_percentage) * user.total_tests_taken +
+                                       percentage) / (user.total_tests_taken + 1)
+
+            user.total_time_spent += time_taken
+            user.total_tests_taken += 1
+
+            # weight = 1 / user.total_tests_taken
+            # user.overall_percentage = (1 - weight) * float(user.overall_percentage) + (
+            #         weight * percentage)
             user.save()
 
         return Response({
@@ -336,8 +340,8 @@ class SendQuizEmailView(APIView):
         - User must be authenticated.
         - User must have examiner privileges.
     """
-    serializer_class = QuizEmailSendSerializer
 
+    serializer_class = QuizEmailSendSerializer
     permission_classes = [IsAuthenticated, IsExaminer]
 
     @extend_schema(request=QuizEmailSendSerializer)
@@ -357,6 +361,7 @@ class SendQuizEmailView(APIView):
 
 class UserResultListView(generics.ListAPIView):
     serializer_class = UserResultListSerializer
+    permission_classes = [IsAuthenticated, IsExaminer]
 
     def get_queryset(self):
         user_id = self.kwargs['user_id']
@@ -365,46 +370,74 @@ class UserResultListView(generics.ListAPIView):
 
 class UserResultDetailView(generics.RetrieveAPIView):
     queryset = Result.objects.all()
+    permission_classes = [IsAuthenticated, IsExaminer]
     serializer_class = UserResultDetailSerializer
     lookup_field = 'id'
 
 
-class OpenEndedQuestionScoreView(APIView):
-    @extend_schema(request=OpenEndedQuestionScoreSerializer)
-    def post(self, request, *args, **kwargs):
-        serializer = OpenEndedQuestionScoreSerializer(data=request.data)
+class OpenEndedReview(APIView):
+    # permission_classes = [IsAuthenticated, IsExaminer]
+
+    @extend_schema(request=OpenEndedReviewSerializer)
+    def post(self, request):
+        serializer = OpenEndedReviewSerializer(data=request.data)
         if serializer.is_valid():
+
             open_ended_answer_id = serializer.validated_data['open_ended_answer_id']
             score = serializer.validated_data['score']
 
-            try:
-                open_ended_answer = OpenEndedAnswer.objects.filter(id=open_ended_answer_id).first()
-                if not open_ended_answer:
-                    raise NotFound('Answer not found')
-                result = open_ended_answer.submitted_answer.quiz_result
+            open_ended_answer = OpenEndedAnswer.objects.filter(id=open_ended_answer_id).first()
+            if not open_ended_answer:
+                raise NotFound('Answer not found')
+            result = open_ended_answer.submitted_answer.quiz_result
 
-                if open_ended_answer.score:
-                    result.score -= open_ended_answer.score
-                result.score += score
-                open_ended_answer.score = score
+            question = open_ended_answer.submitted_answer.question
+            quiz = result.quiz
 
-                open_ended_answer.save()
-                result.save()
+            this_questions_max_score = QuestionScore.objects.filter(quiz=quiz, question=question).first().score
 
-                # question = open_ended_answer.submitted_answer.question
-                # quiz = result.quiz
-                # max_score = QuestionScore.objects.filter(quiz=quiz, question=question).first().score
+            choices_max_score = QuestionScore.objects.filter(quiz=quiz, question__answer_type=1)
+            if choices_max_score:
+                choices_max_score = choices_max_score.values('score').first().get('score')
+            else:
+                choices_max_score = 0
 
+            reviewed_open_ended_max_score = (QuestionScore.objects
+                                             .filter(quiz=quiz, question__answer_type=2,
+                                                     question__submittedanswer__open_ended_answer__score__isnull=False))
+            if reviewed_open_ended_max_score:
+                reviewed_open_ended_max_score = reviewed_open_ended_max_score.values('score').first().get('score')
+            else:
+                reviewed_open_ended_max_score = 0
 
-                # user = result.user
-                # max_score = QuestionScore.objects.filter(question__submittedanswer__open_ended_answer=open_ended_answer,
-                #                                          quiz=result.quiz).values('score').first().get('score')
+            old_max = choices_max_score + reviewed_open_ended_max_score
 
-                # user.save()
-                # (user.overall_percentage * user.total_tests_taken - old_score/max_score * 100 + score/max_score * 100)/user.total_tests_taken
+            old_score = result.score
 
-                return Response({'message': 'Score updated successfully'}, status=status.HTTP_200_OK)
-            except OpenEndedAnswer.DoesNotExist:
-                return Response({'error': 'Open-ended answer not found'}, status=status.HTTP_404_NOT_FOUND)
+            this_questions_percentage = score / this_questions_max_score * 100
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            if old_max > 0:
+                old_percentage = old_score / old_max * 100
+                new_percentage = (old_percentage + this_questions_percentage) / 2
+
+            else:
+                new_percentage = this_questions_percentage
+                old_percentage = 100
+
+            user = result.user
+
+            user.overall_percentage = (float(user.overall_percentage) * user.total_tests_taken -
+                                       old_percentage + new_percentage) / user.total_tests_taken
+
+            if open_ended_answer.score:
+                result.score -= open_ended_answer.score
+            result.score += score
+            open_ended_answer.score = score
+
+            open_ended_answer.save()
+            result.save()
+            user.save()
+
+            return Response({'message': 'Score updated successfully'}, status=status.HTTP_200_OK)
+
+        return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
