@@ -179,9 +179,10 @@ class OpenEndedReviewSerializer(serializers.Serializer):
     score = serializers.IntegerField()
 
     def validate(self, data):
-        # Get the maximum score for the associated question
 
         open_ended = OpenEndedAnswer.objects.filter(id=data.get('open_ended_answer_id')).first()
+        if open_ended.score:
+            raise serializers.ValidationError("Question is already reviewed.")
         quiz = open_ended.submitted_answer.quiz_result.quiz
         max_score = QuestionScore.objects.filter(
             question__submittedanswer__open_ended_answer=data.get('open_ended_answer_id'), quiz=quiz).first().score

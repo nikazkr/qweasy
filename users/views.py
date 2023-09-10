@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from utils.permissions import IsExaminer
+from utils.permissions import IsSensei
 from utils.token import create_custom_token
 from . import serializers
 from .models import Profile, CustomUser
@@ -136,8 +136,8 @@ class ResendStatusChangeView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
-        if request.user.role != "examiner":
-            return Response({"message": "Only examiners can request status change"}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role != "sensei":
+            return Response({"message": "Only senseis can request status change"}, status=status.HTTP_403_FORBIDDEN)
         else:
             request.user.status = "pending"
             request.user.save()
@@ -147,4 +147,4 @@ class ResendStatusChangeView(APIView):
 class UsersListView(generics.ListAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
-    permission_classes = (IsAdminUser, IsExaminer)
+    permission_classes = (IsAdminUser, IsSensei)

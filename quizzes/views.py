@@ -4,12 +4,13 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from rest_framework import status, generics
 from rest_framework.exceptions import NotFound
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.generics import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from utils.mail import send_quiz_link_to_students
-from utils.permissions import IsExaminer
+from utils.permissions import IsSensei
 from utils.score import calculate_score
 from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
@@ -23,7 +24,7 @@ class QuestionCreateView(APIView):
 
     Permissions:
         - User must be authenticated.
-        - User must have examiner privileges.
+        - User must have sensei privileges.
 
     Args:
         request (HttpRequest): The request object containing user authentication and question data.
@@ -35,13 +36,13 @@ class QuestionCreateView(APIView):
         ValidationError: If the submitted question data is invalid.
 
     Notes:
-        - This view enables authorized examiners to create new questions with specific attributes.
+        - This view enables authorized senseis to create new questions with specific attributes.
         - The question data should follow the structure defined in the 'QuestionSerializer'.
         - An example request structure is provided in the OpenAPI specification.
         - Upon successful creation, the question data is returned in the response.
     """
 
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     @extend_schema(
         request=QuestionSerializer,
@@ -75,7 +76,7 @@ class QuestionCreateView(APIView):
 class QuestionDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
 
 class QuestionSelectView(APIView):
@@ -87,7 +88,7 @@ class QuestionSelectView(APIView):
 
     Permissions:
         - User must be authenticated.
-        - User must have examiner privileges.
+        - User must have sensei privileges.
 
     Args:
         request (HttpRequest): The HTTP request object.
@@ -99,7 +100,7 @@ class QuestionSelectView(APIView):
         -This view assumes that the user is authenticated and has the required permissions.
     """
 
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     @extend_schema(
         parameters=[
@@ -163,18 +164,18 @@ class QuestionFavoriteView(APIView):
 
     Permissions:
         - User must be authenticated.
-        - User must have examiner privileges.
+        - User must have sensei privileges.
     """
 
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     def post(self, request, pk):
-        question = Question.objects.filter(pk=pk)
+        question = Question.objects.filter(pk=pk).first()
         if not question:
             raise NotFound('Question not found')
 
         user = request.user
-        favorite, created = Favorite.objects.get_or_create(user=user, question=question[0])
+        favorite, created = Favorite.objects.get_or_create(user=user, question=question)
 
         if not created:
             favorite.delete()  # Unfavorite if already marked as favorite
@@ -186,19 +187,18 @@ class QuestionFavoriteView(APIView):
 class QuizCreateView(generics.CreateAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizCreateSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
 
 class QuizListView(generics.ListAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
 
 class QuizDetailView(APIView):
     serializer_class = QuizDetailSerializer
-
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     def get(self, request, quiz_unique_link):
         quiz = Quiz.objects.filter(unique_link=quiz_unique_link)
@@ -213,8 +213,7 @@ class QuizUpdateDeleteView(generics.UpdateAPIView,
                            generics.mixins.DestroyModelMixin):
     queryset = Quiz.objects.all()
     serializer_class = QuizDetailSerializer
-
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
@@ -245,8 +244,7 @@ class ResultSubmitView(APIView):
     """
 
     serializer_class = ResultSubmitSerializer
-
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(request=ResultSubmitSerializer)
     def post(self, request, *args, **kwargs):
@@ -301,11 +299,8 @@ class ResultSubmitView(APIView):
 
             if score.get('total_max_score') > 0:
                 percentage = score.get('total_score') / score.get('total_max_score') * 100
-            else:
-                percentage = 100
-
-            user.overall_percentage = (float(user.overall_percentage) * user.total_tests_taken +
-                                       percentage) / (user.total_tests_taken + 1)
+                user.overall_percentage = (float(user.overall_percentage) * user.total_tests_taken +
+                                           percentage) / (user.total_tests_taken + 1)
 
             user.total_time_spent += time_taken
             user.total_tests_taken += 1
@@ -319,7 +314,6 @@ class ResultSubmitView(APIView):
             'message': 'User answers submitted successfully.',
             'score': score.get('total_score'),
             'max_score': score.get('total_max_score'),
-            'percentage': round(percentage, 2)
         }, status=status.HTTP_200_OK)
 
 
@@ -338,11 +332,11 @@ class SendQuizEmailView(APIView):
 
     Permissions:
         - User must be authenticated.
-        - User must have examiner privileges.
+        - User must have sensei privileges.
     """
 
     serializer_class = QuizEmailSendSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     @extend_schema(request=QuizEmailSendSerializer)
     def post(self, request):
@@ -361,7 +355,7 @@ class SendQuizEmailView(APIView):
 
 class UserResultListView(generics.ListAPIView):
     serializer_class = UserResultListSerializer
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     def get_queryset(self):
         user_id = self.kwargs['user_id']
@@ -370,13 +364,13 @@ class UserResultListView(generics.ListAPIView):
 
 class UserResultDetailView(generics.RetrieveAPIView):
     queryset = Result.objects.all()
-    permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
     serializer_class = UserResultDetailSerializer
     lookup_field = 'id'
 
 
 class OpenEndedReview(APIView):
-    # permission_classes = [IsAuthenticated, IsExaminer]
+    permission_classes = [IsAuthenticated, IsSensei]
 
     @extend_schema(request=OpenEndedReviewSerializer)
     def post(self, request):
@@ -386,34 +380,37 @@ class OpenEndedReview(APIView):
             open_ended_answer_id = serializer.validated_data['open_ended_answer_id']
             score = serializer.validated_data['score']
 
-            open_ended_answer = OpenEndedAnswer.objects.filter(id=open_ended_answer_id).first()
-            if not open_ended_answer:
-                raise NotFound('Answer not found')
+            open_ended_answer = get_object_or_404(OpenEndedAnswer, id=open_ended_answer_id)
             result = open_ended_answer.submitted_answer.quiz_result
-
             question = open_ended_answer.submitted_answer.question
             quiz = result.quiz
 
             this_questions_max_score = QuestionScore.objects.filter(quiz=quiz, question=question).first().score
 
-            choices_max_score = QuestionScore.objects.filter(quiz=quiz, question__answer_type=1)
-            if choices_max_score:
-                choices_max_score = choices_max_score.values('score').first().get('score')
-            else:
-                choices_max_score = 0
+            choices_max_score = (
+                QuestionScore.objects
+                .filter(quiz=quiz, question__answer_type=1)
+                .values('score')
+                .first()
+            )
+            choices_max_score = choices_max_score['score'] if choices_max_score else 0
 
-            reviewed_open_ended_max_score = (QuestionScore.objects
-                                             .filter(quiz=quiz, question__answer_type=2,
-                                                     question__submittedanswer__open_ended_answer__score__isnull=False))
-            if reviewed_open_ended_max_score:
-                reviewed_open_ended_max_score = reviewed_open_ended_max_score.values('score').first().get('score')
-            else:
-                reviewed_open_ended_max_score = 0
+            reviewed_open_ended_max_score = (
+                QuestionScore.objects
+                .filter(
+                    quiz=quiz,
+                    question__answer_type=2,
+                    question__submittedanswer__open_ended_answer__score__isnull=False
+                )
+                .exclude(question=question)
+                .values('score')
+                .first()
+            )
+            reviewed_open_ended_max_score = reviewed_open_ended_max_score[
+                'score'] if reviewed_open_ended_max_score else 0
 
             old_max = choices_max_score + reviewed_open_ended_max_score
-
             old_score = result.score
-
             this_questions_percentage = score / this_questions_max_score * 100
 
             if old_max > 0:

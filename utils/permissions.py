@@ -1,12 +1,12 @@
 from rest_framework import permissions
 
 
-class IsExaminer(permissions.BasePermission):
+class IsSensei(permissions.BasePermission):
     """
-    Custom permission to only allow examiner to view and edit objects.
+    Custom permission to only allow sensei to view and edit objects.
     """
     def has_permission(self, request, view):
-        return request.user.status == "accepted" and request.user.role == "examiner"
+        return request.user.status == "accepted" and request.user.role == "sensei"
 
 
 class IsOwner(permissions.BasePermission):

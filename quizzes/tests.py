@@ -15,7 +15,7 @@ User = get_user_model()
 class BaseAPITestCase(APITestCase):
     def setUp(self):
         self.category = Category.objects.create(name='Test Category')
-        self.user = User.objects.create_user(email='test@user.com', password='testpassword', role='examiner',
+        self.user = User.objects.create_user(email='test@user.com', password='testpassword', role='sensei',
                                              status='accepted')
         self.question = Question.objects.create(text='Test Question')
         self.answer1 = Answer.objects.create(text='Test Answer 1', question=self.question, is_correct=True)
