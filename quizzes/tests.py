@@ -219,7 +219,7 @@ class ResultSubmitViewTestCase(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {
             "message": "User answers submitted successfully.",
-            'score': 10.0, 'max_score': 10, 'percentage': 100.0})
+            'score': 10.0, 'max_score': 10})
         self.assertEqual(Result.objects.count(), 1)
 
     def test_submit_user_answers_invalid_data(self):
