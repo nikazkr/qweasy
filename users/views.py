@@ -13,9 +13,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from utils.permissions import IsSensei
 from utils.token import create_custom_token
-from . import serializers
 from .models import Profile, CustomUser
-from .serializers import CustomUserSerializer, StatusChangeSerializer
+from .serializers import CustomUserSerializer, StatusChangeSerializer, UserRegistrationSerializer, UserLoginSerializer, \
+    ProfileSerializer, ProfileAvatarSerializer
 
 User = get_user_model()
 
@@ -26,7 +26,7 @@ class UserRegistrationAPIView(GenericAPIView):
     """
 
     permission_classes = (AllowAny,)
-    serializer_class = serializers.UserRegisterationSerializer
+    serializer_class = UserRegistrationSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -44,13 +44,13 @@ class UserLoginAPIView(GenericAPIView):
     """
 
     permission_classes = (AllowAny,)
-    serializer_class = serializers.UserLoginSerializer
+    serializer_class = UserLoginSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data
-        serializer = serializers.CustomUserSerializer(user)
+        serializer = self.serializer_class(user)
         token = create_custom_token(user)
         data = serializer.data
         data["tokens"] = {"refresh": str(token), "access": str(token.access_token)}
@@ -63,7 +63,7 @@ class UserAPIView(RetrieveUpdateAPIView):
     """
 
     permission_classes = (IsAuthenticated,)
-    serializer_class = serializers.CustomUserSerializer
+    serializer_class = CustomUserSerializer
 
     def get_object(self):
         return self.request.user
@@ -75,7 +75,7 @@ class UserProfileAPIView(RetrieveUpdateAPIView):
     """
 
     queryset = Profile.objects.all()
-    serializer_class = serializers.ProfileSerializer
+    serializer_class = ProfileSerializer
     permission_classes = (IsAuthenticated,)
 
     def get_object(self):
@@ -88,7 +88,7 @@ class UserAvatarAPIView(RetrieveUpdateAPIView):
     """
 
     queryset = Profile.objects.all()
-    serializer_class = serializers.ProfileAvatarSerializer
+    serializer_class = ProfileAvatarSerializer
     permission_classes = (IsAuthenticated,)
 
     def get_object(self):

@@ -15,14 +15,14 @@ class CustomUserSerializer(serializers.ModelSerializer):
                   "overall_percentage")
 
 
-class UserRegisterationSerializer(serializers.ModelSerializer):
+class UserRegistrationSerializer(serializers.ModelSerializer):
     """
     Serializer class to serialize registration requests and create a new user.
     """
 
     class Meta:
         model = CustomUser
-        fields = ("id", "username", "email", "password", "role")
+        fields = ("id", "email", "password", "role")
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):

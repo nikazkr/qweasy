@@ -21,6 +21,7 @@ class CustomUser(AbstractUser):
         ("declined", "Declined"),
     )
 
+    username = models.CharField(_("username"), max_length=150, unique=False, blank=True, null=True)
     email = models.EmailField(_("email address"), unique=True)
     role = models.CharField(_("role"), max_length=10, choices=ROLE_CHOICES, default="noob")
     status = models.CharField(_("status"), max_length=10, choices=STATUS_CHOICES, default="pending")
@@ -29,7 +30,7 @@ class CustomUser(AbstractUser):
     overall_percentage = models.DecimalField(_("overall percentage"), max_digits=5, decimal_places=2, default=100)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username"]
+    REQUIRED_FIELDS = []
 
     objects = CustomUserManager()
 

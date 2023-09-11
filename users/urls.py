@@ -16,5 +16,4 @@ urlpatterns = [
     path('login/google/', CustomGoogleLogin.as_view(), name='google_login'),
     path('admin/status-change/<int:user_id>/', StatusChangeView.as_view(), name='status-change'),
     path('resend-status-change/', ResendStatusChangeView.as_view(), name='resend-status-change'),
-
 ]

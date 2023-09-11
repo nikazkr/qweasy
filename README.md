@@ -71,7 +71,7 @@ To run Qweasy on your local environment using Docker, follow these steps:
   the repository from Github.
 
    ```bash
-   git clone https://github.com/your-username/qweasy.git
+   git clone https://github.com/nikazkr/qweasy.git
 
 - #### Set up environment variables:
 
@@ -90,7 +90,12 @@ To run Qweasy on your local environment using Docker, follow these steps:
 - Access the application in your web browser:
 
    ```bash
-   http://localhost:8000/
+   http://localhost/
+  
+- Access Swagger:
+
+   ```bash
+   http://localhost/docs
 
 ### Stopping the App:
 
@@ -104,8 +109,23 @@ To run Qweasy on your local environment using Docker, follow these steps:
 Qweasy provides a comprehensive API for managing quizzes and users. Here's a brief overview of the available API
 endpoints:
 
-### Quizzes
+#### Users
 
+- **Register User**: `POST /users/register/`
+- **Login User**: `POST /users/login/`
+- **Refresh Token**: `POST /users/token/refresh/`
+- **Get User Info**: `GET /users/user/`
+- **Update User Profile**: `PUT/PATCH /users/user/`
+- **Update User Avatar**: `POST /users/profile/avatar/`
+- **Login with Google**: `POST /users/login/google/`
+- **Change User Status**: `POST /users/admin/status-change/<int:user_id>/`
+- **Resend Status Change**: `POST /users/resend-status-change/`
+
+#### Quizzes
+
+- **List Categories**: `GET /categories/`
+- **Create Category**: `POST /categories/`
+- **Retrieve Category Detail**: `GET /categories/<int:pk>/`
 - **Create Question**: `POST /question/create/`
 - **Select Question**: `GET /question/`
 - **Retrieve Question Detail**: `GET /question/<int:pk>/`
@@ -115,19 +135,10 @@ endpoints:
 - **Update/Delete Quiz**: `PUT/PATCH/DELETE /quiz/<int:pk>`
 - **List Quizzes**: `GET /quiz/`
 - **Submit Quiz Results**: `POST /quiz/submit`
-- **Retrieve User Results with Answers**: `GET /user-results/<int:user_id>/`
-- **Send Quiz URL by Email to the Participants**: `POST /quiz/send-email/`
-
-### Users
-
-- **Obtain Token**: `POST /users/token/`
-- **Refresh Token**: `POST /users/token/refresh/`
-- **Login with Google**: `POST /users/login/google/`
-- **Register User**: `POST /users/register/`
-- **Login User**: `POST /users/login/`
-- **Logout User**: `POST /users/logout/`
-- **Get/Update User**: `GET/PUT/PATCH /users/user/`
-- **Change Password**: `POST /user/password/change/`
+- **Review Open-Ended Quiz**: `POST /quiz/open-ended-review`
+- **List User Results**: `GET /quiz/user-results/<int:user_id>/`
+- **View User Result Detail**: `GET /quiz/user-result/<int:id>/`
+- **Send Quiz URL by Email**: `POST /quiz/send-email/`
 
 For detailed information about each API endpoint, request/response formats, and authentication, please refer to
 the [Ararsebuli Linki](link-to-api-documentation).
