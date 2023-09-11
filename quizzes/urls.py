@@ -2,9 +2,11 @@ from django.urls import path
 
 from .views import QuestionSelectView, QuestionCreateView, QuestionFavoriteView, ResultSubmitView, QuestionDetailView, \
     QuizCreateView, QuizDetailView, QuizUpdateDeleteView, QuizListView, SendQuizEmailView, \
-    UserResultListView, UserResultDetailView, OpenEndedReview
+    UserResultListView, UserResultDetailView, OpenEndedReview, CategoryListCreateView, CategoryDetailView
 
 urlpatterns = [
+    path('categories/', CategoryListCreateView.as_view(), name='category-list'),
+    path('categories/<int:pk>/', CategoryDetailView.as_view(), name='category-detail'),
     path('question/create/', QuestionCreateView.as_view(), name='question-create'),
     path('question/', QuestionSelectView.as_view(), name='question-select'),
     path('question/<int:pk>/', QuestionDetailView.as_view(), name='question-detail'),

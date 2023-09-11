@@ -1,8 +1,14 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer, OpenEndedAnswer
+from quizzes.models import Question, Answer, Quiz, QuestionScore, Result, SubmittedAnswer, OpenEndedAnswer, Category
 from users.models import CustomUser
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ('id', 'name')
 
 
 class AnswerSerializer(serializers.ModelSerializer):
@@ -130,7 +136,7 @@ class ResultSubmitSerializer(serializers.Serializer):
 
 class QuizEmailSendSerializer(serializers.Serializer):
     quiz_id = serializers.IntegerField()
-    recipient_emails = serializers.ListField(child=serializers.EmailField())
+    recipient_user_ids = serializers.ListField(child=serializers.IntegerField())
 
 
 class UserResultListSerializer(serializers.ModelSerializer):

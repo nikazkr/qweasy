@@ -9,13 +9,24 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from users.models import CustomUser
 from utils.mail import send_quiz_link_to_students
 from utils.permissions import IsSensei
 from utils.score import calculate_score
-from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore
+from .models import Question, Favorite, Quiz, Result, SubmittedAnswer, OpenEndedAnswer, QuestionScore, Category
 from .serializers import QuestionSerializer, QuizDetailSerializer, \
     ResultSubmitSerializer, QuizEmailSendSerializer, QuizCreateSerializer, \
-    UserResultListSerializer, UserResultDetailSerializer, OpenEndedReviewSerializer
+    UserResultListSerializer, UserResultDetailSerializer, OpenEndedReviewSerializer, CategorySerializer
+
+
+class CategoryListCreateView(generics.ListCreateAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
 
 class QuestionCreateView(APIView):
@@ -343,12 +354,17 @@ class SendQuizEmailView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         quiz_id = serializer.validated_data['quiz_id']
-        quiz = Quiz.objects.filter(pk=quiz_id)
+        quiz = Quiz.objects.filter(pk=quiz_id).first()
         if not quiz:
             raise NotFound('Quiz not found')
-        recipient_emails = serializer.validated_data['recipient_emails']
+        recipient_user_ids = serializer.validated_data['recipient_user_ids']
 
-        send_quiz_link_to_students.delay(recipient_emails, quiz[0].unique_link)
+        recipient_emails = CustomUser.objects.filter(id__in=recipient_user_ids).values_list('email', flat=True)
+
+        if not recipient_emails:
+            raise NotFound('No recipients found with the provided user IDs.')
+
+        send_quiz_link_to_students.delay(list(recipient_emails), quiz.unique_link)
 
         return Response({'message': 'Emails sent successfully.'})
 
