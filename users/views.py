@@ -9,7 +9,6 @@ from rest_framework.generics import GenericAPIView, RetrieveUpdateAPIView, get_o
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from utils.permissions import IsSensei
 from utils.token import create_custom_token
@@ -32,7 +31,7 @@ class UserRegistrationAPIView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        token = RefreshToken.for_user(user)
+        token = create_custom_token(user)
         data = serializer.data
         data["tokens"] = {"refresh": str(token), "access": str(token.access_token)}
         return Response(data, status=status.HTTP_201_CREATED)
