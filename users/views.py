@@ -4,7 +4,9 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema, OpenApiExample
 from rest_framework import status, generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import GenericAPIView, RetrieveUpdateAPIView, get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
@@ -94,6 +96,17 @@ class UserAvatarAPIView(RetrieveUpdateAPIView):
         return self.request.user.profile
 
 
+@extend_schema(
+    examples=[
+        OpenApiExample(
+            'Example',
+            value={
+                'code': 'string',
+                'role': 'string',
+            },
+        ),
+    ]
+)
 class CustomGoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = os.environ.get('CALLBACK_URL')
@@ -103,6 +116,11 @@ class CustomGoogleLogin(SocialLoginView):
         response = super().post(request, *args, **kwargs)
         if response.status_code == status.HTTP_200_OK:
             user = self.user
+            role = request.data.get('role', 'noob')
+            if role not in ['noob', 'sensei']:
+                raise ValidationError('Invalid role!')
+            user.role = role
+            user.save()
             token = create_custom_token(user)
             response.data["tokens"] = {"refresh": str(token), "access": str(token.access_token)}
         return response

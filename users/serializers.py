@@ -65,4 +65,4 @@ class ProfileAvatarSerializer(serializers.ModelSerializer):
 
 
 class StatusChangeSerializer(serializers.Serializer):
-    action = serializers.BooleanField()
+    accept = serializers.BooleanField()
