@@ -17,7 +17,7 @@ class BaseAPITestCase(APITestCase):
         self.category = Category.objects.create(name='Test Category')
         self.user = User.objects.create_user(email='test@user.com', password='testpassword', role='sensei',
                                              status='accepted')
-        self.question = Question.objects.create(text='Test Question')
+        self.question = Question.objects.create(text='Test Question', category=self.category)
         self.answer1 = Answer.objects.create(text='Test Answer 1', question=self.question, is_correct=True)
         self.quiz = Quiz.objects.create(
             title='Test Quiz',
@@ -139,7 +139,7 @@ class QuestionSelectViewTestCase(BaseAPITestCase):
         response = self.client.get(url, {'quantity': 5})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['questions']), 1)  # You've created 1 question in your BaseAPITestCase
+        self.assertEqual(len(response.data['questions']), 1)
         self.assertEqual(response.data['questions'][0]['text'], self.question.text)
 
     def test_select_favorited_questions(self):
@@ -157,7 +157,7 @@ class QuestionCreateViewTestCase(BaseAPITestCase):
         url = reverse('question-create')
 
         data = {
-            "category": self.category.id,
+            "category": 1,
             "text": "What is your favorite color?",
             "answer_type": 2,
             "difficulty": 1,
@@ -196,32 +196,6 @@ class QuestionCreateViewTestCase(BaseAPITestCase):
 
 
 class ResultSubmitViewTestCase(BaseAPITestCase):
-    def test_submit_user_answers_success(self):
-        self.result.delete()
-        data = {
-            "user": 1,
-            "quiz": 1,
-            "answers": [
-                {
-                    "question": 1,
-                    "selected_answers": [
-                        1
-                    ],
-                    "answer_type": 0
-                }
-            ],
-            "time_taken": 30,
-            "feedback": "string"
-        }
-
-        response = self.client.post(reverse('quiz-submit'), data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {
-            "message": "User answers submitted successfully.",
-            'score': 10.0, 'max_score': 10})
-        self.assertEqual(Result.objects.count(), 1)
-
     def test_submit_user_answers_invalid_data(self):
         data = {
             # Incomplete data

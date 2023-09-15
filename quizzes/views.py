@@ -214,11 +214,11 @@ class QuizDetailView(APIView):
     permission_classes = [IsAuthenticated, IsSensei]
 
     def get(self, request, quiz_unique_link):
-        quiz = Quiz.objects.filter(unique_link=quiz_unique_link)
+        quiz = Quiz.objects.filter(unique_link=quiz_unique_link).first()
         if not quiz:
             raise NotFound('Quiz not found')
 
-        serializer = self.serializer_class(quiz[0])
+        serializer = self.serializer_class(quiz, context={'request': request})
         return Response(serializer.data)
 
 

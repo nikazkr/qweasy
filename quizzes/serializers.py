@@ -14,15 +14,26 @@ class CategorySerializer(serializers.ModelSerializer):
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
-        fields = ('id', 'text', 'image')
+        fields = ('id', 'text', 'image', 'is_correct')
+
+    def get_fields(self, *args, **kwargs):
+        fields = super().get_fields(*args, **kwargs)  # noqa
+        request = self.context.get('request')
+        if request is not None and request.method == 'GET':
+            fields.pop('is_correct', None)
+        return fields
 
 
 class QuestionSerializer(serializers.ModelSerializer):
-    answers = AnswerSerializer(many=True)
-
     class Meta:
         model = Question
         fields = ('id', 'category', 'text', 'image', 'answer_type', 'difficulty', 'answers')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Pass the 'request' context to the nested AnswerSerializer
+        self.fields['answers'] = AnswerSerializer(many=True, context={'request': self.context.get('request')})
 
     def create(self, validated_data):
         answers_data = validated_data.pop('answers')
